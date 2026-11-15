@@ -34,10 +34,11 @@ new interface with FM and conventional/trunked P25.
 | P25 encryption | ❌ | ✅ AES-256, DES-OFB, ADP/RC4 |
 | Programming | FPP · RadioFoundry CPS (FM/DMR) | FPP · Browser CPS |
 
-FPP means programming from the radio's front panel. **Classic P25 channels must
-be programmed on the radio.** The RadioFoundry CPS does not recognize P25:
-it displays those channels as FM, and editing one can change it to FM when
-written back. Use its editor for FM/DMR channels only.
+FPP means programming from the radio's front panel. Create Classic P25 channels
+on the radio. To edit their RX NAC, TX NAC, talkgroup, or radio ID on a computer, use the
+[Classic r7 P25 codeplug editor](#editing-classic-r7-p25-channels). The RadioFoundry
+CPS displays P25 channels as FM, and editing one there can change it to FM when
+written back.
 
 Classic's P25 operation uses saved channels. P25 scanning, VFO operation, and
 private calls are not available in Classic.
@@ -101,12 +102,49 @@ use only this radio's backup.
   zones, talkgroups, and trunked systems from your browser. Read and write the
   radio over USB, or save your programming to a file.
 - **[RadioFoundry CPS](https://radiofoundry.org/codeplug/index.html):** edit
-  Classic's FM and DMR channels. Program Classic's P25 settings on the radio.
+  Classic's FM and DMR channels.
+- **[Classic r7 P25 codeplug editor](#editing-classic-r7-p25-channels):** edit
+  NAC, talkgroup, and radio ID in a saved Classic codeplug.
 - **[Firmware Utility v1](https://kd8zmm.com/open25-dm32/firmware.html):** install
   compatible firmware packages, make verified full-radio backups, and restore
   your radio from its backup. If v1 isn't working, try
   **[Firmware Utility v2](https://kd8zmm.com/open25-dm32/v2/firmware.html)**.
   Both versions use the same firmware catalog and ZIP packages.
+
+### Editing Classic r7 P25 channels
+
+Run `python tools/classic_p25_editor.py` from the Open25-DM32 checkout with
+Python 3.10+ and Tkinter.
+
+1. Read a flat `.bin` codeplug from the radio using the command below. Keep that
+   original file. You can also open a flat `.bin` you already saved from the
+   RadioFoundry CPS.
+2. Open the file in the Classic r7 editor. Select a P25 channel and edit its
+   hexadecimal RX and TX NACs, decimal talkgroup, and decimal radio ID. Leave
+   TX NAC blank to follow RX and retain the original single-NAC format.
+3. Select **Save a copy**. The copy has the same size and channel slots as the
+   input. The editor changes only the selected P25 fields and the corresponding
+   per-channel ID flag when needed.
+
+Use RadioFoundry's
+[`cps_client.py`](https://github.com/radiofoundry/radiofoundry/blob/main/tools/cps_client.py)
+to transfer the binary directly. Use your programming cable's port in place of
+`COM3` and run these commands from the RadioFoundry checkout. The client needs
+pyserial for the programming cable. Run the write and verify commands after
+saving your edited file.
+
+```sh
+python tools/cps_client.py --port COM3 --offset 0x700000 read original.bin
+python tools/cps_client.py --port COM3 --offset 0x700000 write original-p25.bin
+python tools/cps_client.py --port COM3 --offset 0x700000 verify original-p25.bin
+```
+
+The editor works with existing conventional P25 channels in flat Classic
+codeplugs. It has no radio connection. An explicit TX NAC creates a split-NAC
+record that requires firmware with split-NAC support. Classic r7 skips those
+records. With updated firmware, `F7E` on RX matches any NAC and can be used on
+an RX/TX channel by entering a concrete TX NAC. `F7F` is unsupported, and
+talkgroup 0 and radio ID 0 require an RX-only channel.
 
 > [!WARNING]
 > **THERE IS NO EASY WAY TO RESTORE THE RADIO WITHOUT A BACKUP.**

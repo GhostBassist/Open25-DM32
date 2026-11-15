@@ -73,6 +73,7 @@
 !/tests/audio/test_receive_lab.c
 !/tests/compat/radiofoundry_state.c
 !/tests/classic/test_channels.c
+!/tests/classic/test_p25_editor.py
 !/tests/classic/test_radio.inc
 !/tests/classic/test_start_new.c
 !/tests/classic/test_ui.c
@@ -105,6 +106,7 @@
 !/tools/build_radiofoundry.py
 !/tools/codec_cache.py
 !/tools/classic_channels.py
+!/tools/classic_p25_editor.py
 !/tools/prepare_web_firmware.py
 !/tools/sources.py
 !/tools/test_native_modem.py

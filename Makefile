@@ -1,4 +1,4 @@
-.PHONY: radiofoundry sources toolchain protocol-test codec-test runtime-test voice-test native-test receive-audio-test classic-test test
+.PHONY: radiofoundry sources toolchain protocol-test codec-test runtime-test voice-test native-test receive-audio-test classic-test editor-test test
 
 radiofoundry:
 	python3 tools/build_radiofoundry.py --classic --stack-check
@@ -37,5 +37,8 @@ receive-audio-test:
 
 classic-test:
 	python3 tools/test_classic.py
+
+editor-test:
+	python3 -m unittest discover -s tests/classic -p test_p25_editor.py
 
 test: protocol-test codec-test runtime-test voice-test native-test receive-audio-test classic-test
