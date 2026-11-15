@@ -5,14 +5,20 @@ static nt_test *classic_live;
 static bool classic_busy, classic_stop, classic_receiving;
 static uint32_t classic_sid;
 static unsigned classic_starts, classic_restores;
+static uint16_t classic_rx_nac, classic_tx_nac;
 void mock_enter(void) {}
 void mock_exit(void) {}
 uint32_t hal_micros(void) { return now*1000u; }
 static bool classic_on(void) { return true; }
 static uint16_t classic_battery(void) { return 8000; }
 int p25_lab_busy(void) { return classic_busy; }
-int p25_lab_set_channel(uint16_t n,uint16_t t,uint32_t i)
-{ CHECK(n==0x293 && t==42 && i==3101234);return !classic_busy; }
+int p25_lab_set_channel(uint16_t rx,uint16_t tx,uint16_t t,uint32_t i)
+{
+    classic_rx_nac=rx;
+    classic_tx_nac=tx;
+    CHECK(t==42 && i==3101234);
+    return !classic_busy;
+}
 void p25_lab_channel_stop(void) { classic_stop=true; }
 int p25_lab_channel_receiving(void) { return classic_receiving; }
 int p25_lab_channel_rx(uint32_t hz)
@@ -47,6 +53,7 @@ static void classic_select(bool receive)
     if(receive) {
         classic_pump();classic_pump();
         CHECK(classic_live && classic_live->state==NT_RX && native_lab_owns());
+        CHECK(classic_rx_nac==0x293 && classic_tx_nac==0x293);
     }
 }
 static void classic_press(void)
@@ -143,6 +150,12 @@ static void test_classic_idle_rearm(void)
 int main(void)
 {
     int prior=upstream_radio_main();test_classic_ownership();test_classic_idle_rearm();
+    classic_select(false);
+    sm.view.ch.p25_nac=0xF7E;
+    sm.view.ch.p25_tx_nac_override=0x294; /* Explicit TX NAC 293 */
+    classic_pump();classic_pump();
+    CHECK(classic_rx_nac==0xF7E && classic_tx_nac==0x293);
+    classic_press();
     printf("Classic real FM/DMR/P25 admission and ownership: %d failures\n",failures);
     return prior || failures ? 1 : 0;
 }

@@ -57,12 +57,19 @@ including the codec area.
 Local `--with-local-stock` unit images contain proprietary material and must stay
 private; they are not inputs to this public packager.
 
-In the channel editor, change Mode from DMR to P25, then set Talkgroup, NAC and
-P25 Radio ID. NAC is three hexadecimal digits: Up/Down selects a digit, the knob
-changes its value, and number keys enter 0–9. NAC F7E accepts any receive NAC on
-an RX-only channel; F7F is unsupported. TX uses a concrete NAC, nonzero talkgroup
-and radio ID 1–9999999. Existing FM/DMR records retain their original layout;
-P25 adds a tagged use of the existing fixed-size record, without a second store.
+In the channel editor, change Mode from DMR to P25, then set Talkgroup, RX NAC,
+TX NAC, and P25 Radio ID. Up/Down selects one of the three hexadecimal NAC
+digits. The knob changes its value and the number keys enter 0–9. TX NAC
+defaults to **Same as RX**. Set TX NAC to the current RX NAC to restore that
+behavior. RX NAC `F7E` accepts any receive NAC. A transmit-enabled channel
+with RX NAC `F7E` needs a concrete TX NAC, a nonzero talkgroup, and a radio ID
+from 1 through 9999999. TX rejects `F7E` and `F7F`, and RX rejects `F7F`.
+
+Existing FM/DMR and single-NAC P25 records retain their layouts. A P25 record
+with a TX override uses tag `E` in the high nibble of byte `0x2C` and stores
+the concrete TX NAC as a little-endian word at `0x22`. Legacy P25 records
+use tag `D` and derive TX NAC from RX NAC. Older Classic firmware skips
+split-NAC records because it only recognizes tag `D`.
 
 Selected-channel P25 is supported; P25 scanning and VFO are not in this candidate.
 FM/DMR scanning skips P25 entries. Normal radio protections remain active.
