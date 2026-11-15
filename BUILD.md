@@ -60,8 +60,10 @@ private; they are not inputs to this public packager.
 In the channel editor, change Mode from DMR to P25, then set Talkgroup, RX NAC,
 TX NAC, and P25 Radio ID. Up/Down selects one of the three hexadecimal NAC
 digits. The knob changes its value and the number keys enter 0–9. TX NAC
-defaults to **Same as RX**. Set TX NAC to the current RX NAC to restore that
-behavior. RX NAC `F7E` accepts any receive NAC. A transmit-enabled channel
+defaults to **Same as RX**. Confirming a numeric TX NAC sets an explicit
+override, even when it equals RX NAC. To restore **Same as RX**, open the TX NAC
+editor, press Down from the first digit, then press OK. RX NAC `F7E` accepts
+any receive NAC. A transmit-enabled channel
 with RX NAC `F7E` needs a concrete TX NAC, a nonzero talkgroup, and a radio ID
 from 1 through 9999999. TX rejects `F7E` and `F7F`, and RX rejects `F7F`.
 

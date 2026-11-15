@@ -16,6 +16,8 @@ int main(void)
         {"Classic P25 NAC", P25_TG "down", "ok enc+ enc+ ok", "shows=$493", 4, false},
         {"Classic P25 hexadecimal NAC", P25_TG "down", "ok enc- enc- enc- ok", "shows=$F93", 5, false},
         {"Classic P25 TX NAC", P25_TG "down down", "ok 4 5 6 ok", "shows=$456", 5, false},
+        {"Classic P25 explicit TX equal to RX", P25_TG "down down", "ok 2 9 3 ok up ok 2 enc+ up 0 ok expect:shows=$2A0 down", "shows=$293", 13, false},
+        {"Classic P25 TX follows RX by choice", P25_TG "down down", "ok 4 5 6 ok ok down expect:shows=Same_as_RX ok", "shows=Same_as_RX", 8, false},
         {"Classic P25 ID", P25_TG "down down down", "ok 3 1 0 1 2 3 4 ok", "shows=3101234", 9, false},
         {"Classic P25 talkgroup limit", P25_TG, "ok 6 5 5 3 6", "toast=Value_too_large", 6, false},
         {"Classic P25 zero talkgroup", P25_TG, "ok 0 ok long:ok", "writes=0 toast=Check_P25", 4, false},

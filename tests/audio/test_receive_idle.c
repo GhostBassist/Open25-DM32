@@ -115,7 +115,7 @@ static void execute(uint32_t first,uint32_t stream,uint32_t limit)
     clock_ms=audio_at=pending_until=stop_at=last_frame_at=seen_frames=first_frame_at=0;
     depth=turn=starts=stops=owned=sequence=partial_after_deadline=output_nonzero=0;
     first_raw_at=first;stream_at=stream;maximum_ms=limit;
-    assert(p25_lab_set_channel(receive_nac,receive_group,123456) && p25_lab_channel_rx(145500000));
+    assert(p25_lab_set_channel(receive_nac,receive_nac,receive_group,123456) && p25_lab_channel_rx(145500000));
     if(!setjmp(finished))worker_fn(NULL);
     assert(state==2 && starts==1 && stops==1 && !owned && !callback && !depth);
     assert(!fifo.overflows && !unsupported && !fifo.count);

@@ -48,6 +48,13 @@ int main(void)
     CHECK(!codeplug_set_channel(11,&p));
     p.p25_tx_nac_override=0xF7Fu + 1u;
     CHECK(!codeplug_set_channel(11,&p));
+    p=valid;p.p25_tx_nac_override=0x456u + 1u;
+    CHECK(codeplug_set_channel(12,&p));
+    CHECK(codeplug_init()==CODEPLUG_OPENFW && codeplug_channel(12,&back));
+    CHECK(back.p25_nac==0xABC && codeplug_p25_tx_nac(&back)==0x456);
+    codeplug_openfw_encode(&p,r);
+    CHECK(r[0x22]==0x56 && r[0x23]==0x04);
+
     CHECK(sim_flash_violations()==0);
     puts("Classic P25 channel persistence, limits and unchanged FM/DMR encodings checked");
     return prior || failures ? 1 : 0;
