@@ -19,7 +19,13 @@ static const struct { unsigned power_count; } board={9};
 #define MIC_GAIN_DB 11
 enum { PIN_SPK_SOURCE, PIN_MIC_PATH };
 static bool board_in_band(uint32_t hz,bool tx)
-{ (void)tx;return (hz>=136000000 && hz<=174000000) || (hz>=400000000 && hz<=480000000); }
+{
+    (void)tx;
+#if CONFIG_P25_HIGHBAND_BENCH
+    if (p25_highband_bench_frequency(hz)) return true;
+#endif
+    return (hz>=136000000 && hz<=174000000) || (hz>=400000000 && hz<=480000000);
+}
 static bool bf_cal_valid(void) { return cal_valid; }
 static uint8_t bf_cal_tx_center(void) { return 1; }
 static uint16_t bf_cal_modcal(uint32_t hz)
@@ -46,8 +52,15 @@ static bool rx(uint32_t hz,radio_bw_t bw,const subtone_t *tone)
     assert((modulation_bias&0xffffu)==(hz<280000000 ? 0x4141u : 0x5252u));
     rx_hz=hz;rx_calls++;return true;
 }
-static bool tx(uint32_t hz,radio_bw_t bw,uint8_t power,const subtone_t *tone)
-{ assert(hz==rx_hz && bw==RADIO_BW_12K5 && power<board.power_count && !tone);tx_calls++;return true; }
+static bool tx_prepare(uint32_t hz,radio_bw_t bw,uint8_t power,const subtone_t *tone)
+{
+    assert(hz==rx_hz && bw==RADIO_BW_12K5 && power<board.power_count && !tone);
+#if CONFIG_P25_HIGHBAND_BENCH
+    assert(power == 0);
+#endif
+    tx_calls++;
+    return true;
+}
 static void board_rf_safe(void) { safe_calls++; }
 static void dmr_rf_switch(bool on) { assert(on); }
 static void hrc_timer_oneshot(unsigned n,uint32_t us) { assert(n==3 && us==28000); }
@@ -63,6 +76,29 @@ void hn_port_restore(void) { }
 int main(void)
 {
     native_init();
+#if CONFIG_P25_HIGHBAND_BENCH
+    const uint32_t frequencies[] = {450000000u, 800000000u, 900000000u};
+    nt_config c = {.mode=NT_TRANSMIT, .p25_sync=1, .audio=1, .power=8};
+    for (unsigned i = 0; i < sizeof frequencies / sizeof frequencies[0]; i++) {
+        const uint32_t hz = frequencies[i];
+        c.frequency_hz = hz;
+        c.mode = NT_RECEIVE;
+        assert(native_prepare(NULL, &c) && rx_hz == hz);
+        assert(native_restore(NULL));
+        c.mode = NT_TRANSMIT;
+        assert(native_prepare(NULL, &c) && rx_hz == hz);
+        assert(native_restore(NULL));
+    }
+    c.frequency_hz = 900000010u;
+    assert(!native_prepare(NULL, &c));
+    c.frequency_hz = 435000000u;
+    assert(!native_prepare(NULL, &c));
+    c.frequency_hz = 900000000u;
+    c.p25_sync = 0;
+    assert(!native_prepare(NULL, &c));
+    assert(rx_calls == 6 && tx_calls == 3);
+    puts("PASS high-band native board routing and TX restrictions");
+#else
     nt_config c={.frequency_hz=145500000,.mode=NT_TRANSMIT,.p25_sync=1,.audio=1};
     const uint32_t frequencies[]={145500000,435000000,150000000,440000000};
     rx_hz=435000000;
@@ -80,5 +116,6 @@ int main(void)
     c.frequency_hz=100000000;assert(!native_prepare(NULL,&c) && rx_hz==before);
     assert(rx_calls==4 && tx_calls==2 && !depth);
     puts("PASS actual native board prepare/set_mode: current-session VHF/UHF calibration, unchanged rejection and RX/TX routing");
+#endif
     return 0;
 }

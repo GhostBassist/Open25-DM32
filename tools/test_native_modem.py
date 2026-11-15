@@ -26,10 +26,13 @@ def main():
     start=board.index("static void set_mode(radio_mode_t m)\n{")
     end=board.index("\n}\n",start)+3
     (OUT/"board_set_mode.inc").write_text(board[start:end]+"\n")
-    run(["clang",*flags,"-DCONFIG_DEV_TX=1","-DCONFIG_P25_NATIVE=1","-DCONFIG_DMR=1",
-         "-I"+str(app/"core"),"-I"+str(app/"hal"),"-I"+str(OUT),
-         "tests/native/test_board_prepare.c","-o",OUT/"test_board_prepare"])
-    run([OUT/"test_board_prepare"])
+    for bench in (0, 1):
+        executable = OUT / f"test_board_prepare_{bench}"
+        run(["clang",*flags,"-DCONFIG_DEV_TX=1","-DCONFIG_P25_NATIVE=1","-DCONFIG_DMR=1",
+             f"-DCONFIG_P25_HIGHBAND_BENCH={bench}",
+             "-I"+str(app/"core"),"-I"+str(app/"hal"),"-I"+str(OUT),
+             "tests/native/test_board_prepare.c","-o",executable])
+        run([executable])
     run(["clang",*flags,"-Itests/native/stubs","-Iintegration/radiofoundry","-I"+str(app/"core"),
          "-I"+str(app/"hal"),"-DCONFIG_P25_NATIVE=1","-Wno-unused-parameter",
          "src/modem/native_test.c","integration/radiofoundry/native/native_lab.c","tests/native/test_lab.c",

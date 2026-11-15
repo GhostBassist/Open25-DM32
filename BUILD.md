@@ -71,3 +71,27 @@ Legacy development flags remain available for regression work. `--first-boot`
 blocks ordinary TX/writes; `--tx-bench` additionally requires `--dev-update` and
 uses fixed bench settings. Neither is the Classic release preset, and those
 flags cannot be combined with `--classic`.
+
+## 450 / 800 / 900 MHz P25 bench build
+
+```sh
+python3 tools/build_radiofoundry.py --classic --highband-bench --stack-check
+python3 tools/prepare_web_firmware.py \
+  --image build/radiofoundry-p25/build/dm32-p25-classic-highband-bench/rfoundry_dm32.bin \
+  --out artifacts/firmware/Open25-DM32-Highband-Bench.zip
+```
+
+Install the application ZIP on both supported DM-32UV units with the Open25
+Firmware Utility. On each radio, create three saved conventional **P25** channels
+with RX and TX both set to **450.00000**, **800.00000**, or **900.00000 MHz**.
+Use the same concrete NAC and talkgroup on both radios, for example NAC `293`
+and talkgroup `1`, with a different nonzero radio ID per unit.
+
+Native P25 PTT is restricted to those three simplex frequencies. The build
+uses the lowest drive setting from the radio's 450 MHz calibration at all three
+frequencies. Actual RF power and spectral purity at 800 and 900 MHz are unknown.
+Use a shielded or conducted setup with enough attenuation to protect the
+receiving radio. Start at 450 MHz, confirm that voice comes through in both
+directions, then repeat the same test at 800 and 900 MHz. Check the transmitted
+carrier on a spectrum analyzer or SDR if available. Two-radio decode alone
+cannot distinguish which side failed or rule out reception on an image.
