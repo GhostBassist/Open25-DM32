@@ -177,3 +177,4 @@ __pycache__/
 /experiments/codec/out/
 /tests/protocol/vectors/
 /tests/protocol/results.json
+!/P25-ENCRYPTION.md
