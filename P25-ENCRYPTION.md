@@ -64,9 +64,9 @@ terminal echo suppressed. Keep the key out of commands, chat, screenshots,
 logs, and source files.
 
 ```powershell
-python .	ools\p25_keyloader.py --port COM7 load 1 --algorithm aes256 --key-id 0x1234
-python .	ools\p25_keyloader.py --port COM7 list
-python .	ools\p25_keyloader.py --port COM7 finish
+python .\tools\p25_keyloader.py --port COM7 load 1 --algorithm aes256 --key-id 0x1234
+python .\tools\p25_keyloader.py --port COM7 list
+python .\tools\p25_keyloader.py --port COM7 finish
 ```
 
 Check that `list` reports the expected slot, algorithm, and KID. The utility
@@ -80,13 +80,13 @@ PIN on the handset, wait for **Unlocked. Load via cable**, and run `load`
 again to replace a slot or `remove` to clear it. Finish after checking the result.
 
 ```powershell
-python .	ools\p25_keyloader.py --port COM7 start
-python .	ools\p25_keyloader.py --port COM7 remove 1
-python .	ools\p25_keyloader.py --port COM7 list
-python .	ools\p25_keyloader.py --port COM7 finish
+python .\tools\p25_keyloader.py --port COM7 start
+python .\tools\p25_keyloader.py --port COM7 remove 1
+python .\tools\p25_keyloader.py --port COM7 list
+python .\tools\p25_keyloader.py --port COM7 finish
 ```
 
-Use `python .	ools\p25_keyloader.py --port COM7 lock` on FM to clear the
+Use `python .\tools\p25_keyloader.py --port COM7 lock` on FM to clear the
 unlocked session from RAM immediately. Power cycling also locks the vault.
 Finish any active transmission before changing or locking keys.
 
