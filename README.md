@@ -25,7 +25,7 @@ Report firmware and P25 problems to **[Open25-DM32 issues](https://github.com/ty
 | Conventional P25 · White default theme | Trunked P25 · New interface |
 | ![Classic P25 channel settings with talkgroup and NAC](images/classic-settings.png) | ![Next P25 system settings with WACN and System ID](images/next-settings.png) |
 | P25 channel settings: talkgroup, NAC, and radio ID | Trunked system settings: WACN and System ID |
-| **0.1.0-rc1-r11 release candidate available** | **In development · source private.** |
+| **0.1.0-rc1-r12 release candidate available** | **In development · source private.** |
 
 | Feature | Classic | Next |
 | --- | --- | --- |
@@ -58,11 +58,20 @@ Encryption support is still being tested with other radios and systems.
 ## Release status
 
 **Classic and Next are alpha firmware, and testing is still underway.**
-Classic **0.1.0-rc1-r11** is available in the
+Classic **0.1.0-rc1-r12** is available in the
 [Flasher v3](https://kd8zmm.com/open25-dm32/v3/firmware.html), under
 **Open25-DM32 Classic → Standard · DM-32UV**. Final on-air qualification is
 incomplete; compatibility with every DM-32UV hardware revision is not established.
 Next remains unavailable, with its release date to be determined.
+
+Revision r12 keeps the speaker FIFO fed by a 2 ms hardware timer while the
+block callback runs, and uses the existing scratch memory as one extra queued
+block. A block can now be queued when space becomes free during its callback;
+transmit and route changes still discard stale audio. P25 gain, the IMBE codec,
+RFKV programming and supported modes are unchanged. The newer RadioFoundry
+codec's gain correction does not apply to this Classic codec. Full host,
+sanitizer, target stack/ABI and reproducible-build checks cover this release;
+physical-radio qualification of r12 has not been performed.
 
 Revision r11 fixes the missing P25 choice in Classic CPS after connecting to
 the radio (issue #27). The firmware now advertises its saved conventional P25

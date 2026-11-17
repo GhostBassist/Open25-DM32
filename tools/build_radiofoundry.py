@@ -315,7 +315,27 @@ def prepare():
     transform("platform/hrc7000/audio_pcm.h", [
         ('void hrc_audio_pcm_hold(bool on);', 'void hrc_audio_pcm_hold(bool on);\n#if CONFIG_P25\nbool hrc_audio_pcm_amp_wanted(void);\n#endif'),
     ])
+    # FIFO scheduling/queue fix from RadioFoundry RX audio PR #660 (MIT).
+    transform("platform/hrc7000/platform.h", [
+        ('#define TIMER_BOARD', '#define TIMER_PCM\t\t6\t// speaker refill independent of block callbacks\n#define TIMER_BOARD'),
+    ])
     transform("platform/hrc7000/audio_pcm.c", [
+        ('// the task pushes the queue to the prompt FIFO, 32 samples at a time while b31 says there is room, as stock does. The', '// a 2 ms timer pushes the queue to the prompt FIFO, 32 samples at a time while b31 says there is room. The'),
+        ('#define SPK_BLOCKS\t\t3', '#define SPK_BLOCKS\t\t4\t// three queued blocks and one reserved for the producer'),
+        ('static bool spk_routed;', 'static volatile bool spk_routed;'),
+        ('// Push 32-sample chunks while the FIFO has room (AUDIO_CONTROL b31 clear). Task context: the task tops it up every\n// 2 ms while the speaker is routed, faster than a chunk (4 ms) plays', '// Timer context: refill every 2 ms even while a block callback occupies the audio task.'),
+        ('static void audio_task(void *arg)', 'static void fifo_tick(void)\n{\n\thrc_timer_ack(TIMER_PCM);\n\tfifo_feed();\n}\n\nstatic void audio_task(void *arg)'),
+        ('ulTaskNotifyTake(pdTRUE, spk_routed ? pdMS_TO_TICKS(2) : tx_gated ? pdMS_TO_TICKS(10) : portMAX_DELAY);', 'ulTaskNotifyTake(pdTRUE, tx_gated ? pdMS_TO_TICKS(10) : portMAX_DELAY);'),
+        ('\t\tgate_check();\n\t\tfifo_feed();', '\t\tgate_check();'),
+        ('\t\tif (next == spk_tail) {\n\t\t\tstatic int16_t discard[AUDIO_BLOCK_SAMPLES];\n\t\t\tcb(mic, discard, block_ctx);\t// the speaker side is full (PCM not routed): keep the mic side going\n\t\t} else {\n\t\t\tint16_t *q = spk_q[spk_head];\n\t\t\tuint8_t gen = spk_gen;\n\t\t\tcb(mic, q, block_ctx);\n\t\t\tbool loud = false;\n\t\t\tfor (uint32_t i = 0; i < AUDIO_BLOCK_SAMPLES && !loud; i++) {\n\t\t\t\tloud = q[i] != 0;\n\t\t\t}\n\t\t\t// A gate edge emptied the queue during cb() (another task): this block is as stale as the rest\n\t\t\ts = hrc_irq_save();\n\t\t\tif (gen == spk_gen) {\n\t\t\t\tspk_loud[spk_head] = loud;\n\t\t\t\tspk_head = next;\n\t\t\t}\n\t\t\thrc_irq_restore(s);\n\t\t}', '\t\t// The reserved head slot is safe to fill even when the queue is full.\n\t\tint16_t *q = spk_q[spk_head];\n\t\tuint8_t gen = spk_gen;\n\t\tcb(mic, q, block_ctx);\n\t\tbool loud = false;\n\t\tfor (uint32_t i = 0; i < AUDIO_BLOCK_SAMPLES && !loud; i++) {\n\t\t\tloud = q[i] != 0;\n\t\t}\n\t\t// The timer may have freed space during cb(); a gate edge makes this block stale.\n\t\ts = hrc_irq_save();\n\t\tif (gen == spk_gen && next != spk_tail) {\n\t\t\tspk_loud[spk_head] = loud;\n\t\t\tspk_head = next;\n\t\t}\n#if CONFIG_P25\n\t\telse play_diag[gen == spk_gen ? 8 : 9]++;\n#endif\n\t\thrc_irq_restore(s);'),
+        ('\t\tblocks++;\n\t\tfifo_feed();', '\t\tblocks++;'),
+        ('\t\thrc_irq_register(IRQ_PCM_WR, isr_pcm_wr);', '\t\thrc_irq_register(IRQ_PCM_WR, isr_pcm_wr);\n\t\thrc_irq_register(IRQ_TIMER6, fifo_tick);\n\t\thrc_irq_enable(IRQ_TIMER6, true);'),
+        ('\tblock_ctx = ctx;', '\tuint32_t irq = hrc_irq_save();\n\tblock_ctx = ctx;'),
+        ('\thrc7000_audio_bits(modem, C7_AUDIO_PCM_MIC, 0);\t// under the lock set at attach', '\thrc7000_audio_bits(modem, C7_AUDIO_PCM_MIC, 0);\t// under the lock set at attach\n\thrc_timer_periodic(TIMER_PCM, 2000u);\n\thrc_irq_restore(irq);'),
+        ('\trunning = false;', '\trunning = false;\n\thrc_timer_stop(TIMER_PCM);'),
+        ('static void speaker_pcm(bool on)\n{', 'static void speaker_pcm(bool on)\n{\n\tuint32_t irq = hrc_irq_save();'),
+        ('\tif (speaker_pcm_cb != NULL) {\n\t\tspeaker_pcm_cb(on);\n\t}', '\tif (speaker_pcm_cb != NULL) {\n\t\tspeaker_pcm_cb(on);\n\t}\n\thrc_irq_restore(irq);'),
+
         ('\tfifo_held = on;', '\tfifo_held = on;\n#if CONFIG_P25\n\tplayback_amp_update();\n#endif'),
         ('\t\ttx_gated = true;', '\t\ttx_gated = true;\n#if CONFIG_P25\n\t\tplayback_amp_update();\n#endif'),
         ('static void gate_check(void);', 'static void gate_check(void);\n#include "pcm_playback.inc"'),
@@ -323,8 +343,6 @@ def prepare():
         ('\tspk_routed = on;', '\tspk_routed = on;\n#if CONFIG_P25\n\tplay_amp_on = playback_amp_want();\n#endif'),
         ('hrc7000_prompt_push(modem, &spk_q[spk_tail][spk_pos])' , 'playback_push(&spk_q[spk_tail][spk_pos])'),
         ('\t\t\tspk_tail = (uint8_t)((spk_tail + 1u) % SPK_BLOCKS);\n\t\t}\n\t}', '\t\t\tspk_tail = (uint8_t)((spk_tail + 1u) % SPK_BLOCKS);\n\t\t}\n#if CONFIG_P25\n\t\tif (play_paced) break;\n#endif\n\t}'),
-        ('\t\t\tcb(mic, discard, block_ctx);', '#if CONFIG_P25\n\t\t\tplay_diag[8]++;\n#endif\n\t\t\tcb(mic, discard, block_ctx);'),
-        ('\t\t\t\tspk_head = next;\n\t\t\t}', '\t\t\t\tspk_head = next;\n\t\t\t}\n#if CONFIG_P25\n\t\t\telse play_diag[9]++;\n#endif'),
         ('\trunning = false;', '\trunning = false;\n#if CONFIG_P25\n\tplay_paced = false;\n#endif'),
         ('\t.spk_pending = hrc_audio_pcm_spk_pending,', '\t.spk_pending = hrc_audio_pcm_spk_pending,\n#if CONFIG_P25\n\t.playback_pace = playback_pace,\n\t.playback_stats = playback_stats,\n#endif'),
     ])
@@ -562,7 +580,7 @@ def main():
     suffix += ("-lean" if args.lean else "") + ("-cpu" if args.cpu_profile else "") + ("-dev" if args.dev_update else "") + ("-tx" if args.tx_bench else "")
     if args.classic:
         suffix='classic'
-        identity='classic-0.1.0-rc1-r11'
+        identity='classic-0.1.0-rc1-r12'
     b = f"build/dm32-p25-{suffix}"
     command = ["make", "-j8", "BOARD=dm32", f"CROSS={ROOT}/toolchain/bin/csky-elf-", f"BUILD={b}",
         "CONFIG_P25=" + ("n" if args.disable else "y"), "CONFIG_P25_NATIVE="+("y" if native else "n"), "CONFIG_DMR_IP_GATEWAY=n", "CONFIG_NET_PPP=n",
@@ -607,6 +625,7 @@ def main():
         if native:
             edges=DEST / b / "native-stack-edges.txt"
             extra="\n# Native interrupt entries use the separate 2048-byte IRQ stack.\n"
+            extra+="task platform/hrc7000/audio_pcm.c:fifo_tick 512\n"
             extra+="".join(f"task platform/hrc7000/hrc_native_port.c:{fn} 512\n" for fn in ("sys","ts_tx","ts_rx","rftx","guard","pa"))
             # The source scanner does not follow the included board .inc.
             # Supply its actual function-pointer targets for conservative depth.

@@ -5,16 +5,27 @@
 #define pdFALSE 0
 #define portYIELD_FROM_ISR(x) ((void)(x))
 #define IRQ_PCM_WR 28
+#define IRQ_TIMER6 6
+#define TIMER_PCM 6
+#include <setjmp.h>
 #include <assert.h>
 #include <stdio.h>
 #include "modem/hrc7000/hrc7000.h"
 #include "FreeRTOS.h"
 static uint32_t now_us;
+static void (*timer_isr)(void);
+static unsigned timer_period, timer_acks;
+static bool run_one;
+static unsigned task_waits;
+static jmp_buf task_done;
+static void hrc_timer_ack(uint8_t n) { assert(n==TIMER_PCM);timer_acks++; }
+static void hrc_timer_periodic(uint8_t n,uint32_t us) { assert(n==TIMER_PCM);timer_period=us; }
+static void hrc_timer_stop(uint8_t n) { assert(n==TIMER_PCM);timer_period=0; }
 static uint32_t hrc_micros(void) { return now_us; }
 static uint32_t hrc_irq_save(void) { return 0; }
 static void hrc_irq_restore(uint32_t s) { (void)s; }
 static void hrc_irq_enable(unsigned irq,bool on) { (void)irq;(void)on; }
-static void hrc_irq_register(unsigned irq,void (*fn)(void)) { (void)irq;(void)fn; }
+static void hrc_irq_register(unsigned irq,void (*fn)(void)) { if(irq==IRQ_TIMER6)timer_isr=fn; }
 static void hrc_barrier(void) { }
 static bool hrc_dmr_tx_active(void) { return false; }
 static bool tone_active;
@@ -24,7 +35,8 @@ void hrc7000_audio_bits(hrc7000_t *d,uint32_t set,uint32_t clear) { d->audio_ctl
 void vTaskNotifyGiveFromISR(TaskHandle_t t,BaseType_t *w) { (void)t;(void)w; }
 BaseType_t xTaskCreate(void (*fn)(void *),const char *n,unsigned s,void *c,unsigned p,TaskHandle_t *h)
 { (void)fn;(void)n;(void)s;(void)c;(void)p;*h=(void *)1;return pdPASS; }
-uint32_t ulTaskNotifyTake(BaseType_t c,TickType_t t) { (void)c;(void)t;return 0; }
+uint32_t ulTaskNotifyTake(BaseType_t c,TickType_t t)
+{ (void)c;(void)t;if(run_one && task_waits++)longjmp(task_done,1);return 0; }
 void xTaskNotifyGive(TaskHandle_t t) { (void)t; }
 #include "../../build/radiofoundry-p25/platform/hrc7000/audio_pcm.c"
 /* Actual board ownership logic; keep modem/source hardware local to the test. */
@@ -46,6 +58,22 @@ static void enqueue(unsigned serial)
     uint8_t next=(uint8_t)((spk_head+1u)%SPK_BLOCKS);assert(next!=spk_tail);
     for(unsigned i=0;i<160;i++)spk_q[spk_head][i]=(int16_t)(serial*160+i);
     spk_loud[spk_head]=true;spk_head=next;
+}
+/* Run the real producer while the timer consumes queued PCM inside a slow callback. */
+static bool change_generation;
+static void slow_block(const int16_t *mic,int16_t *spk,void *ctx)
+{
+    (void)mic;(void)ctx;
+    assert(spk==spk_q[spk_head]); /* reserved head, even when full at entry */
+    for(unsigned i=0;i<160;i++)spk[i]=(int16_t)(99*160+i);
+    for(unsigned i=0;i<12;i++){now_us+=2000;timer_isr();}
+    if(change_generation)spk_drop();
+}
+static void one_block(void)
+{
+    mic_ready=0;task_waits=0;run_one=true;
+    if(!setjmp(task_done))audio_task(NULL);
+    run_one=false;
 }
 int main(void)
 {
@@ -120,5 +148,22 @@ int main(void)
     hrc_audio_pcm_hold(false);assert(amp_enabled);
     hrc_audio_pcm_tx_gate();assert(!amp_enabled && tx_gated && spk_head==spk_tail);
     now_us+=GATE_MIN_US;gate_check();fifo_feed();assert(!tx_gated && !amp_enabled);
+    /* Timer lifecycle and refill continue through a blocked callback. A queue
+     * full at entry can publish once the timer makes room, without a discard. */
+    tx_gated=false;fifo_held=false;loud_recent=false;
+    assert(start(slow_block,NULL) && timer_isr && timer_period==2000);
+    playback_pace(true);speaker_pcm(true);
+    for(unsigned i=0;i<SPK_BLOCKS-1;i++)enqueue(i);
+    assert((spk_head+1u)%SPK_BLOCKS==spk_tail);
+    unsigned callbacks=blocks;
+    one_block();
+    assert(blocks==callbacks+1 && timer_acks==12);
+    assert(play_diag[2]==6 && play_diag[6]==4000 && !play_diag[8] && !play_diag[9]);
+    assert(spk_head==0 && spk_tail==1 && spk_pos==32);
+    assert(spk_q[SPK_BLOCKS-1][0]==99*160 && spk_q[1][0]==160);
+    /* Gate/route generation changes during cb must reject its stale samples. */
+    change_generation=true;one_block();
+    assert(spk_head==spk_tail && play_diag[9]==1);
+    stop();assert(!running && !timer_period);
     puts("Real PCM driver: continuous 8 kHz, full retry/sample order, hold/TX gates, missed deadline, legacy A/B PASS");
 }

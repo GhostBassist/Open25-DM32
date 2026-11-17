@@ -6,7 +6,7 @@
 #include "radio/beep.h"
 #endif
 static p25_pcm_clock play_clock;
-static bool play_paced;
+static volatile bool play_paced;
 static bool play_amp_on;
 static uint32_t play_diag[16];
 static bool playback_amp_want(void)
