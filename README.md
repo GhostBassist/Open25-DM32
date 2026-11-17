@@ -37,9 +37,14 @@ Report firmware and P25 problems to **[Open25-DM32 issues](https://github.com/ty
 | Programming | FPP · Classic CPS (FM/DMR/P25) | FPP · Next CPS |
 
 FPP means programming from the radio's front panel. **Open25-DM32 Classic CPS**
-supports Classic's FM, DMR and conventional P25 channels, including separate RX
-and TX NACs, talkgroup and radio ID. Use Classic CPS for Classic and Next CPS
-for Next; their supported modes and firmware requirements differ.
+supports Open25-DM32 Classic firmware R9 and newer, with FM, DMR and
+conventional P25 channels, including separate RX and TX NACs, talkgroup and
+radio ID. Use Classic CPS for Classic and Next CPS for Next; their supported
+modes and firmware requirements differ.
+
+The tools homepage lists Flasher v3, Classic CPS and Next CPS. Retired Flasher
+v1/v2 choices are removed; their former public entry URLs redirect to
+[Flasher v3](https://kd8zmm.com/open25-dm32/v3/firmware.html).
 
 Classic's P25 operation uses saved channels. P25 scanning, VFO operation, and
 private calls are not available in Classic.
