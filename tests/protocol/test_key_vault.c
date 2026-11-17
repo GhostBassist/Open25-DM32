@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "key_vault.h"
+#include "vault_pin.h"
 #include "secure_frame.h"
 #include <assert.h>
 #include <stdio.h>
@@ -17,6 +18,9 @@ static const uint8_t expected[] = {
 int main(void)
 {
     uint8_t master[32], wrong[32] = {0}, salt[16] = {1};
+    static const uint8_t reference_master[32] = {0x8b, 0x01, 0x58, 0x58, 0x28, 0x56, 0xa3, 0x49, 0xa3, 0x26, 0x7c, 0x34, 0x41, 0x6e, 0x38, 0x68, 0x65, 0x96, 0xdc, 0x00, 0x80, 0x77, 0xe3, 0xe6, 0x70, 0xfc, 0xf1, 0xf4, 0x54, 0x79, 0xa6, 0x0e};
+    p25_pin_derive("24681357", 8, salt, master, NULL, NULL);
+    assert(!memcmp(master, reference_master, sizeof master));
     p25_vault_image image;
     p25_key_entry key = {.algorithm=P25_ALG_AES256, .kid={0x34, 0x12}}, read;
     for (unsigned i = 0; i < 32; i++) {
