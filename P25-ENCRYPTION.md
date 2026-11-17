@@ -1,10 +1,19 @@
 # P25 Phase 1 encryption bench procedure
 
-This procedure records the DM-32UV prototype workflow for conventional P25.
-The tested firmware is the P25 Controls prototype or a later derivative with the same keyloader.
-Classic r8 main does not implement the prototype keyloader. The encryption
-port must integrate with r8's MIT P25 CAI and IMBE without replacing the
-pinned source snapshots. The ordinary r8 firmware ZIP cannot run these steps.
+This procedure covers the opt-in Classic r8 encryption build for the DM-32UV.
+Use the standard build prerequisites in [BUILD.md](BUILD.md).
+
+```sh
+python3 tools/build_radiofoundry.py --classic --p25-encryption --stack-check
+python3 tools/prepare_web_firmware.py \
+  --image build/radiofoundry-p25/build/dm32-p25-classic-encryption/rfoundry_dm32.bin \
+  --out build/Open25-DM32-Classic-r8-Encryption.zip
+```
+
+The preset keeps Classic r8's stock frequency limits. Verify the saved test
+channel is inside the Classic P25 TX window. For example, 449.975 MHz is
+inside the existing UHF window; the previous prototype's 450.000 MHz test
+frequency is at the excluded upper edge.
 
 ## Prepare and flash each radio
 
@@ -20,7 +29,7 @@ pinned source snapshots. The ordinary r8 firmware ZIP cannot run these steps.
    workflow. Check that it boots. Prepare an ordinary FM channel for keyloader
    operations and a saved conventional P25 channel for the voice test. Keep the
    serial utility and flasher closed when handing the port to another program.
-4. Run the keyloader from the same prototype source checkout as the firmware.
+4. Run the keyloader from the same source checkout as the firmware.
    Its upstream source directory supplies `rfoundry_debug.py`. Install Python
    3 and its serial dependency. Discover the port with
    `python -m serial.tools.list_ports`.
@@ -133,15 +142,15 @@ Finish any active transmission before changing or locking keys.
 | COM port missing or access denied | Confirm the cable enumerates, and disconnect the flasher, CPS, or serial terminal from the port. |
 | Command is busy | Select FM, release PTT, and wait for any PIN check to finish. |
 | Loading window closed | Run `start` and authorize again with the handset PIN. The vault can remain unlocked for radio use while the cable window is closed. |
-| No flash ID during keypad setup | On the prototype, run `start` to supply a per-vault salt from the PC, then create the PIN on the handset. |
-| No erased vault block | Stop provisioning and retain the radio's backup. The prototype requires an erased block in its reserved data-flash area. |
+| No flash ID during keypad setup | Run `start` to supply a per-vault salt from the PC, then create the PIN on the handset. |
+| No erased vault block | Stop provisioning and retain the radio's backup. The keyloader requires an erased block in its reserved data-flash area. |
 | P25 key unavailable | Unlock the vault and verify the selected slot and algorithm. |
 | Encrypt Mismatch or no audio | Check transmit and receive frequency, NAC, talkgroup, the active cipher and KID, and that both ends used the same traffic key. |
 | PIN rejected | Retry with the vault's original PIN. The workflow has no PIN recovery operation. |
 
 ## Provisioning and release notes
 
-The prototype derives the vault master from the PIN on the handset and stores
+The keyloader derives the vault master from the PIN on the handset and stores
 authenticated ciphertext in data flash. The PIN stays on the handset. The
 traffic key crosses the direct serial cable during loading, so use a trusted
 computer and cable. Flash possession permits offline PIN guesses. AES-256 is
@@ -149,7 +158,7 @@ the strongest of these options. DES-OFB and ADP/RC4 are legacy interoperability
 modes. The radio reserves message-indicator state before transmit and can
 unlock and use saved slots after reboot with the cable disconnected.
 
-The prototype was hardware-tested for matching AES audio in both directions,
+The earlier prototype was hardware-tested for matching AES audio in both directions,
 first-time keypad setup, unplugged PIN unlock and slot persistence on one
 radio, empty-slot PTT denial, and receive mismatch indication. DES-OFB and
 ADP/RC4 passed host voice tests. They still need radio interoperability tests.
