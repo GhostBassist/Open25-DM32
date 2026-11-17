@@ -55,7 +55,7 @@ ZIP offered by Flasher v3:
 ```sh
 python3 tools/prepare_web_firmware.py \
   --image build/radiofoundry-p25/build/dm32-p25-classic/rfoundry_dm32.bin \
-  --out artifacts/firmware/Open25-DM32-Classic-0.1.0-rc1-r10-rfkv-application.zip
+  --out artifacts/firmware/Open25-DM32-Classic-0.1.0-rc1-r11-rfkv-application.zip
 ```
 
 The packager verifies the application and linker-map hashes against the build
@@ -63,7 +63,7 @@ manifest, checks the reserved codec layout, and writes only `firmware.json` and
 `application.bin`. The manifest records `codecTablesEnd` from the verified
 linker map; older ZIPs without that field retain the old table limit. It refuses
 to replace an existing ZIP. The runtime version is
-`open25-classic-0.1.0-rc1-r10`; `r10` identifies this catalog/package revision.
+`open25-classic-0.1.0-rc1-r11`; `r11` identifies this catalog/package revision.
 Firmware binaries and ZIPs stay in ignored output directories and are never
 committed to GitHub. No build or packaging command opens or installs a radio.
 
@@ -139,3 +139,12 @@ The full UI regression covers new/copy defaults, effective TX edits, confirmatio
 accept/cancel, in-band behavior, existing-record preservation and display fit.
 Run the normal full host suite and target stack/ABI/identical-rebuild checks
 above before packaging a release.
+
+## P25 capability advertisement in r11
+
+The shared firmware feature list advertises `P25` only when
+`CONFIG_P25_CHANNELS` is enabled. `make classic-test` compiles the real VERSION
+handler, formatter and feature list for disabled, lab-only and Classic builds.
+It checks the returned capability tokens and RFKV programming markers. The
+matching CPS regression parses the same C handler response and checks the form
+and table mode choices without relying on an existing P25 channel.

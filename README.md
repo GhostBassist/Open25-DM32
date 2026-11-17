@@ -25,7 +25,7 @@ Report firmware and P25 problems to **[Open25-DM32 issues](https://github.com/ty
 | Conventional P25 · White default theme | Trunked P25 · New interface |
 | ![Classic P25 channel settings with talkgroup and NAC](images/classic-settings.png) | ![Next P25 system settings with WACN and System ID](images/next-settings.png) |
 | P25 channel settings: talkgroup, NAC, and radio ID | Trunked system settings: WACN and System ID |
-| **0.1.0-rc1-r10 release candidate available** | **In development · source private.** |
+| **0.1.0-rc1-r11 release candidate available** | **In development · source private.** |
 
 | Feature | Classic | Next |
 | --- | --- | --- |
@@ -58,11 +58,17 @@ Encryption support is still being tested with other radios and systems.
 ## Release status
 
 **Classic and Next are alpha firmware, and testing is still underway.**
-Classic **0.1.0-rc1-r10** is available in the
+Classic **0.1.0-rc1-r11** is available in the
 [Flasher v3](https://kd8zmm.com/open25-dm32/v3/firmware.html), under
 **Open25-DM32 Classic → Standard · DM-32UV**. Final on-air qualification is
 incomplete; compatibility with every DM-32UV hardware revision is not established.
 Next remains unavailable, with its release date to be determined.
+
+Revision r11 fixes the missing P25 choice in Classic CPS after connecting to
+the radio (issue #27). The firmware now advertises its saved conventional P25
+capability in the VERSION response. Existing RFKV programming and the r10
+RX-only defaults are preserved. Regression tests exercise the real firmware
+VERSION handler and verify P25 selection in a codeplug with no P25 channels.
 
 Revision r10 adds an RX-only default and one explicit transmit confirmation to
 Classic and its matching CPS. New or copied channels whose actual TX frequency

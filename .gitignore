@@ -70,6 +70,7 @@
 !/tests/classic/test_radio.inc
 !/tests/classic/test_start_new.c
 !/tests/classic/test_ui.c
+!/tests/classic/test_version.c
 !/tests/codec/test_slot.c
 !/tests/compat/radiofoundry_state.c
 !/tests/firstboot/stubs/FreeRTOS.h

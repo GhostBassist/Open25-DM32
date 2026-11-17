@@ -274,6 +274,12 @@ def prepare():
     transform("core/config.h", [
         ('#define RFOUNDRY_CONFIG_H\n', '#define RFOUNDRY_CONFIG_H\n#ifndef CONFIG_P25_CHANNELS\n#define CONFIG_P25_CHANNELS 0\n#endif\n#ifndef CONFIG_P25\n#define CONFIG_P25 0\n#endif\n#ifndef CONFIG_P25_NATIVE\n#define CONFIG_P25_NATIVE 0\n#endif\n#ifndef CONFIG_P25_BENCH\n#define CONFIG_P25_BENCH 1\n#endif\n#ifndef CONFIG_DEV_UPDATE\n#define CONFIG_DEV_UPDATE 0\n#endif\n#ifndef CONFIG_DEV_TX\n#define CONFIG_DEV_TX 0\n#endif\n#ifndef CONFIG_CPU_PROFILE\n#define CONFIG_CPU_PROFILE 0\n#endif\n#ifndef CONFIG_FIRSTBOOT\n#define CONFIG_FIRSTBOOT 0\n#endif\n#if CONFIG_FIRSTBOOT\n#include "firstboot/firstboot.h"\n#endif\n'),
     ])
+    # The CPS offers saved-channel modes from VERSION's shared feature list.
+    # Lab-only P25 builds must not claim that they support saved P25 channels.
+    transform("core/hostlink/build_info.c", [
+        ('#if CONFIG_DMR\n\t"DMR,"\n#endif',
+         '#if CONFIG_DMR\n\t"DMR,"\n#endif\n#if CONFIG_P25_CHANNELS\n\t"P25,"\n#endif'),
+    ])
     transform("Makefile", [
         ("APP_DIRS := $(CORE_DIRS)", "ifeq ($(CONFIG_P25),y)\nCORE_DIRS += core/p25 core/p25/cai\nP25_LIB := core/p25/libdm32_imbe.a\nendif\nifeq ($(CONFIG_P25_NATIVE),y)\nCORE_DIRS += core/native_modem\nendif\nifeq ($(CONFIG_FIRSTBOOT),y)\nCORE_DIRS += core/firstboot\nendif\nAPP_DIRS := $(CORE_DIRS)"),
         ('$(BUILD)/core/hostlink/build_info.o: CFLAGS_APP +=',
@@ -556,7 +562,7 @@ def main():
     suffix += ("-lean" if args.lean else "") + ("-cpu" if args.cpu_profile else "") + ("-dev" if args.dev_update else "") + ("-tx" if args.tx_bench else "")
     if args.classic:
         suffix='classic'
-        identity='classic-0.1.0-rc1-r10'
+        identity='classic-0.1.0-rc1-r11'
     b = f"build/dm32-p25-{suffix}"
     command = ["make", "-j8", "BOARD=dm32", f"CROSS={ROOT}/toolchain/bin/csky-elf-", f"BUILD={b}",
         "CONFIG_P25=" + ("n" if args.disable else "y"), "CONFIG_P25_NATIVE="+("y" if native else "n"), "CONFIG_DMR_IP_GATEWAY=n", "CONFIG_NET_PPP=n",

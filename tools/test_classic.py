@@ -21,6 +21,20 @@ def main():
     run(['python3',ROOT/'tools/build_radiofoundry.py','--prepare-only'],cwd=ROOT)
     OUT.mkdir(parents=True,exist_ok=True)
     host=APP/'tests/host'
+    # VERSION must advertise the saved-channel capability, not the lab engine.
+    # Link the real handler/formatter/build_info; unused radio commands are discarded.
+    for p25, channels in [(0, 0), (1, 0), (1, 1)]:
+        version=OUT/f'test_version_{p25}_{channels}'
+        run(['clang','-std=gnu99','-Wall','-Wextra','-Wno-unused-parameter','-g',
+             '-fsanitize=address,undefined','-fno-sanitize-recover=undefined',
+             '-ffunction-sections','-fdata-sections','-D__attribute__(x)=',
+             f'-DCONFIG_P25={p25}',f'-DCONFIG_P25_CHANNELS={channels}',
+             '-I'+str(APP/'core'),'-I'+str(APP/'drivers'),'-I'+str(APP/'hal'),
+             ROOT/'tests/classic/test_version.c',APP/'core/hostlink/build_info.c',
+             APP/'core/debuglink/dl_fmt.c',
+             '-Wl,-dead_strip' if sys.platform=='darwin' else '-Wl,--gc-sections',
+             '-o',version],cwd=ROOT)
+        run([version],cwd=ROOT)
     flags=['-std=gnu99','-Wall','-Wextra','-Wno-unused-parameter','-g',
            '-fsanitize=address,undefined','-fno-sanitize-recover=undefined','-fno-omit-frame-pointer',
            '-I'+str(APP/'core'),'-I'+str(APP/'drivers'),'-I'+str(APP/'hal'),'-I'+str(host),
