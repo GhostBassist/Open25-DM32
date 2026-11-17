@@ -20,7 +20,7 @@ frequency is at the excluded upper edge.
 1. Confirm the radio is a DM-32UV and the application package identifies
    target `dm32-048`. Use a firmware package with **Tools → 0 P25 Keyloader**
    and the channel **Algorithm** selector.
-2. Back up the radio before installing the prototype. In the Firmware Utility,
+2. Back up the radio before installing the encryption build. In the Firmware Utility,
    save the stock code and data flash backup for each radio, and export the
    codeplug. Keep each unit's backup separate. Follow the codec and first-install
    instructions in [BUILD.md](BUILD.md) so the radio's own compatible AMBE slot
@@ -164,3 +164,14 @@ radio, empty-slot PTT denial, and receive mismatch indication. DES-OFB and
 ADP/RC4 passed host voice tests. They still need radio interoperability tests.
 This procedure covers conventional group voice. The separate private
 dialing and trunked call workflow remains outside this proposal.
+
+
+## Build verification
+
+Run the secure voice and vault tests with the pinned host references fetched
+per [BUILD.md](BUILD.md).
+
+```sh
+python3 tools/test_voice.py --encryption
+python3 tools/test_classic.py
+```

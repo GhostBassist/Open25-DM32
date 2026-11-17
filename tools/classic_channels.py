@@ -120,6 +120,9 @@ static inline uint16_t codeplug_p25_tx_nac(const channel_t *ch)
 static inline bool codeplug_p25_valid(const channel_t *ch)
 {
 	uint16_t tx_nac=codeplug_p25_tx_nac(ch);
+#if CONFIG_P25_ENCRYPTION
+	if (ch->p25_key_slot > 8u || ch->p25_key_algorithm > 3u) return false;
+#endif
 	return ch->bw == RADIO_BW_12K5 && ch->p25_nac <= 0xFFFu &&
 	       ch->p25_nac != 0xF7Fu && ch->p25_id <= 9999999u &&
 	       (!ch->p25_tx_nac_override || (tx_nac < 0x1000u && tx_nac != 0xF7Eu && tx_nac != 0xF7Fu)) &&
