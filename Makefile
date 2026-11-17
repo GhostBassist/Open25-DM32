@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-.PHONY: radiofoundry sources toolchain cai-test protocol-test codec-test runtime-test voice-test native-test receive-audio-test classic-test test
+.PHONY: radiofoundry sources toolchain cai-test protocol-test codec-test runtime-test voice-test native-test receive-audio-test classic-test test nrfb-test
 
 radiofoundry:
 	python3 tools/build_radiofoundry.py --classic --stack-check
@@ -37,6 +37,9 @@ runtime-test:
 voice-test:
 	python3 tools/test_voice.py
 
+nrfb-test:
+	python3 tools/test_nrfb.py
+
 native-test:
 	python3 tools/test_native_modem.py
 
@@ -46,4 +49,4 @@ receive-audio-test:
 classic-test:
 	python3 tools/test_classic.py
 
-test: cai-test protocol-test codec-test runtime-test voice-test native-test receive-audio-test classic-test
+test: cai-test protocol-test codec-test runtime-test voice-test native-test receive-audio-test classic-test nrfb-test

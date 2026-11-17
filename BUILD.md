@@ -55,7 +55,7 @@ ZIP offered by Flasher v3:
 ```sh
 python3 tools/prepare_web_firmware.py \
   --image build/radiofoundry-p25/build/dm32-p25-classic/rfoundry_dm32.bin \
-  --out artifacts/firmware/Open25-DM32-Classic-0.1.0-rc1-r8-mit-application.zip
+  --out artifacts/firmware/Open25-DM32-Classic-0.1.0-rc1-r9-rfkv-application.zip
 ```
 
 The packager verifies the application and linker-map hashes against the build
@@ -63,7 +63,7 @@ manifest, checks the reserved codec layout, and writes only `firmware.json` and
 `application.bin`. The manifest records `codecTablesEnd` from the verified
 linker map; older ZIPs without that field retain the old table limit. It refuses
 to replace an existing ZIP. The runtime version is
-`open25-classic-0.1.0-rc1-r8`; `r8` identifies this catalog/package revision.
+`open25-classic-0.1.0-rc1-r9`; `r9` identifies this catalog/package revision.
 Firmware binaries and ZIPs stay in ignored output directories and are never
 committed to GitHub. No build or packaging command opens or installs a radio.
 
@@ -84,14 +84,17 @@ creates an explicit TX NAC, even if it equals RX. In the TX editor, Down from
 the first digit selects **Same as RX** again. A numeric override stays fixed
 when RX NAC changes. Up/Down moves between digits and the knob changes a digit.
 
-RX NAC `F7E` accepts any NAC; transmitting from that channel requires a concrete
-TX override. TX NAC `000` is valid; TX `F7E`/`F7F` and RX `F7F` are rejected.
-Transmit still requires a nonzero talkgroup and radio ID from 1 to 9999999.
+RX NAC `F7E` accepts any NAC. Inherited TX uses the receive NAC, or `293` when
+RX is wildcard `F7E`; a numeric override remains explicit and fixed. TX NAC
+`000` is valid; explicit TX `F7E`/`F7F` and RX `F7F` are rejected.
+Transmit still requires a nonzero talkgroup and radio ID from 1 to 16777214.
 
-Legacy single-NAC records retain their encoding. Explicit TX NAC uses the public
-Classic r8 format: high nibble `E` at byte `0x2C`, with TX NAC little-endian at
-`0x22`. Inherited TX uses tag `D`. Older Classic firmware skips tag `E` records;
-use a split-NAC-aware build to read them. No second channel store is introduced.
+RFKV mode records are the only supported Classic P25 programming format.
+Retired A5/D/E channel records are refused without conversion. If such records
+are present, normal editing uses the existing foreign-codeplug gate and requires
+an explicit **Start new** choice; boot and detection never erase them. The
+matching Classic CPS uses the same canonical format and refuses older firmware.
+
 
 Selected-channel P25 is supported; P25 scanning and VFO are not in this candidate.
 FM/DMR scanning skips P25 entries. Normal radio protections remain active.
@@ -100,3 +103,20 @@ Legacy development flags remain available for regression work. `--first-boot`
 blocks ordinary TX/writes; `--tx-bench` additionally requires `--dev-update` and
 uses fixed bench settings. Neither is the Classic release preset, and those
 flags cannot be combined with `--classic`.
+
+## RFKV programming release
+
+Classic r9 and the matching Classic CPS use RadioFoundry's RFKV v1 mode records
+and the existing journaled continuation mechanism. There is no reader, writer
+or automatic conversion for retired Classic A5/D/E P25 programming. Recreate old
+programming in the current CPS or use the radio's explicit Start new workflow.
+The underlying standard FM/DMR base records remain unchanged.
+
+The firmware reports `codeplug=rfkv1` and `codeplug_chain=1`; the editor checks
+both before programming. Update firmware and CPS together. No build, package or
+host-test command flashes or programs a physical radio.
+
+New standard P25 channels select Normal (all groups on the RX NAC) or Selective
+(the saved talkgroup). Explicit TX NAC `000` and fixed TX equal to RX remain
+distinct from inheritance. Conventional unit IDs use the upstream 24-bit range
+through `0xFFFFFE`; the selected codec and voice bitstream are unchanged.

@@ -9,6 +9,8 @@
 int main(void)
 {
     const flow_t checks[]={
+        {"Classic boot identity", "theme:light", "splash", "shows=Open25-DM32_Classic hides=RadioFoundry", 0, false},
+        {"Classic About identity", "theme:light", "ok 7 0 ok", "shows=Open25-DM32_Classic shows=Open25-DM32/issues", 4, false},
         {"Classic DMR to P25", "ok 5 ok down down", "ok", "shows=P25 hides=Color_code writes=0", 1, false},
         {"Classic P25 back to FM", P25_EDIT, "ok", "shows=FM hides=P25 writes=0", 1, false},
         {"Classic P25 saves", P25_EDIT, "long:ok", "writes=1 toast=Saved", 1, true},
@@ -39,3 +41,6 @@ int main(void)
     printf("Classic P25 editor: %d flows, %d failures\n",flows_run,fails);
     return fails!=0;
 }
+
+/* The UI fixture owns no flash; use its existing radio-ID stand-in for inherited identity. */
+uint32_t codeplug_p25_unit_id(uint32_t own) { return own ? own : codeplug_dmr_id(); }

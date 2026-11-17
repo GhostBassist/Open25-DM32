@@ -78,7 +78,7 @@ int main(void)
     const p25_call call={.nac=0x293,.talkgroup=42,.source_id=123456};
     p25_voice_init(&voice,call.nac,call.talkgroup,NULL,NULL);
     live_released=stop_requested=0;
-    assert(p25_lab_set_channel(0xF7E,call.nac,call.talkgroup,call.source_id));
+    assert(p25_lab_set_channel(0xF7E,call.nac,call.talkgroup,call.source_id,1));
     live_sid=42;assert(live_run());
     assert(finished_tx&&go_calls==1&&stops==2&&!critical);
     assert(live_mic_frames==1&&live_encoded==1&&!live_overflows&&!voice.fault);

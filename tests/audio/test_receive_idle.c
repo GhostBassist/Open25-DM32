@@ -15,6 +15,7 @@ static unsigned depth,turn,starts,stops,owned,sequence,partial_after_deadline,ou
 static uint8_t air[4096],raw[128][36];
 static unsigned air_symbols,raw_count;
 static uint16_t receive_nac=0x293,receive_group=42;
+static int selective=1;
 
 void audio_test_enter(void) { depth++; }
 void audio_test_exit(void) { assert(depth);depth--; }
@@ -115,7 +116,7 @@ static void execute(uint32_t first,uint32_t stream,uint32_t limit)
     clock_ms=audio_at=pending_until=stop_at=last_frame_at=seen_frames=first_frame_at=0;
     depth=turn=starts=stops=owned=sequence=partial_after_deadline=output_nonzero=0;
     first_raw_at=first;stream_at=stream;maximum_ms=limit;
-    assert(p25_lab_set_channel(receive_nac,0x456,receive_group,123456) && p25_lab_channel_rx(145500000));
+    assert(p25_lab_set_channel(receive_nac,0x456,receive_group,123456,selective) && p25_lab_channel_rx(145500000));
     if(!setjmp(finished))worker_fn(NULL);
     assert(state==2 && starts==1 && stops==1 && !owned && !callback && !depth);
     assert(!fifo.overflows && !unsupported && !fifo.count);
@@ -135,6 +136,9 @@ int main(void)
     assert(last_frame_at>2000); /* ongoing 180 ms LDUs never restart the worker */
     receive_group=43;execute(0,0,4000);
     assert(voice.rx_frames==15 && voice.rx_muted==117 && !output_nonzero && last_frame_at>2000);
+    selective=0;execute(0,0,4000);
+    assert(voice.rx_frames==15 && !voice.rx_muted && output_nonzero);
+    selective=1;
     receive_group=42;receive_nac=0x123;execute(0,0,1000);
     assert(!voice.rx_frames && voice.framer.bad_nids>=2 && !pcm_blocks && stop_at>=500 && stop_at<=510);
     receive_nac=0x293;

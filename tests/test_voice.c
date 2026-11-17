@@ -267,12 +267,23 @@ static void faults(void)
     p25_call invalid = call;
     invalid.nac = P25_NAC_ANY;
     assert(!p25_voice_tx_begin(&v, &invalid));
-    invalid = call; invalid.source_id = 10000000;
+    invalid = call; invalid.source_id = 0xFFFFFF;
     assert(!p25_voice_tx_begin(&v, &invalid));
     invalid = call; invalid.source_id = 0;
     assert(!p25_voice_tx_begin(&v, &invalid));
     invalid = call; invalid.talkgroup = 0;
     assert(!p25_voice_tx_begin(&v, &invalid));
+}
+static void high_unit_id(void)
+{
+    const uint32_t ids[]={10000000u,0xFFFFFEu};
+    for(unsigned i=0;i<2;i++){
+        uint8_t air[333];p25_call high=call;high.source_id=ids[i];
+        reset(high.nac,high.talkgroup);assert(p25_voice_tx_begin(&v,&high));pcm(0);
+        assert(p25_voice_tx_end(&v));assert(drain(air,sizeof air)==sizeof air);
+        p25_decoded decoded;assert(!p25_decode_frame(air+99,216,&decoded));assert(decoded.source_id==ids[i]);
+        feed(air,sizeof air);assert(blocks==9 && loud && !v.rx_muted);
+    }
 }
 static void layout(void)
 {
@@ -316,7 +327,7 @@ int main(void)
     printf("selftest ok=%u air=%u blocks=%u pcm_crc=%08x nonzero=%u session_bytes=%u\n",
             r.ok, r.air_bytes, r.pcm_blocks, r.pcm_crc, r.nonzero_samples, r.session_bytes);
     assert(r.ok);
-    short_call(); paced_call(); encoder_tail(); faults(); layout();
+    short_call(); paced_call(); encoder_tail(); faults(); high_unit_id(); layout();
     puts("PASS conventional voice lifecycle, pacing, admission, underrun, overflow, PHY layouts and loss");
     return 0;
 }

@@ -27,3 +27,14 @@ The DM32 codec-table SRAM limit is backported from RadioFoundry commit
 `88283f6ce3aab4c5ff5c9995600de2acfa2c6f7b` (MIT), extending the exclusive
 end from `0x18003E28` to `0x18003E38` for NRFB .050. The generated board
 registry and package metadata derive this value from the linker symbol.
+
+The DM32 RF setup B tables, lock-based setup selection and associated board
+settings are selectively ported from RadioFoundry `9e1f7209` (MIT). The pinned
+base remains unchanged. The port preserves the existing FM-to-digital tone
+reset and adds regression tests for both RF setups and failed lock detection.
+
+The channel-mode registry, RFKV store, tag/record readers and P25 parameter
+codec are selected from RadioFoundry `9e1f7209` in `third_party/rf_codeplug`.
+Its `UPSTREAM.json` records the original files. Local extensions implement the
+specified continuation chain and preserve explicit TX NAC presence; MIT
+copyright notices remain with the imported source.

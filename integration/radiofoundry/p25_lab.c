@@ -54,14 +54,15 @@ static uint32_t live_sid;
 #if CONFIG_P25_CHANNELS
 static p25_call channel_call;
 static uint16_t channel_rx_nac;
+static uint8_t channel_selective;
 static uint32_t channel_voice_ms;
 static bool channel_voice_seen;
-int p25_lab_set_channel(uint16_t receive_nac,uint16_t transmit_nac,uint16_t talkgroup,uint32_t radio_id)
+int p25_lab_set_channel(uint16_t receive_nac,uint16_t transmit_nac,uint16_t talkgroup,uint32_t radio_id,int selective)
 {
     taskENTER_CRITICAL();
     int ok=state!=1;
     if(ok){
-        channel_rx_nac=receive_nac;
+        channel_rx_nac=receive_nac;channel_selective=selective!=0;
         channel_call=(p25_call){.nac=transmit_nac,.talkgroup=talkgroup,.source_id=radio_id};
     }
     taskEXIT_CRITICAL();
@@ -109,7 +110,7 @@ int p25_lab_channel_rx(uint32_t hz)
         frequency=hz;
 #if CONFIG_P25_CHANNELS
         nac=channel_rx_nac==0xF7Eu?P25_NAC_ANY:channel_rx_nac;
-        group=channel_call.talkgroup;channel_voice_seen=false;
+        group=channel_selective?channel_call.talkgroup:0;channel_voice_seen=false;
 #else
         nac=0x293;group=1;
 #endif

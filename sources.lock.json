@@ -106,6 +106,24 @@
         "compat/open25/dm32_imbe.h": "src/codec/dm32_imbe.h",
         "runtime/memory.c": "src/runtime/memory.c"
       }
+    },
+    {
+      "path": "third_party/rf_codeplug",
+      "commit": "9e1f7209cd00c2575f18c72746ed4dbb1f482f67",
+      "note": "Selected upstream MIT components with reviewed continuation/NAC extensions; original hashes in UPSTREAM.json.",
+      "files": {
+        "README.md": "86c9fb0ee945d5d1c7e8de2dfcce0c0e26245c8227d46e9f6d39eebd0b168a4a",
+        "UPSTREAM.json": "03824268a0d872c52d0b7a204b23e97b926534f768aa25442726076aea111d89",
+        "core/codeplug/codeplug_kv.c": "19a32c3efa9b7746753c6e9bd09d0e752a9dbb6595bc97536e17b14722826f45",
+        "core/codeplug/codeplug_kv.h": "b49254ede208885fe6f1d5c4d392b3f673d0509b8f205f889eb7b94adf04a588",
+        "core/codeplug/codeplug_modes.h": "9f662a2642f890c77ba09541885f742d4ac28688db3ae6fd166098fa2206c16b",
+        "core/codeplug/codeplug_records.c": "6b24702227f6733308793496bbd120770a05a18ce9d80e2fe875e7a8053b36a6",
+        "core/codeplug/codeplug_records.h": "dff2088447c646ab3e4bce49ee8253e93cd1c52760273278381ea623116ef1f0",
+        "core/codeplug/codeplug_tag.c": "eb3470f5eda175dd4ce40cc8f8213d34e45eee6ab903d3271d6d920438165220",
+        "core/codeplug/codeplug_tag.h": "edb47dea6f7444ce92d680ee515e72b838853eb9b496ef4efe8e00bd864ed86f",
+        "core/p25/p25_codeplug.c": "fb56cf54368a00b9dade36d7f7ff7f05d045dde78ff79cb9a40c51429a03afed",
+        "core/p25/p25_codeplug.h": "1a2d439208e51aed52674f8cc718c7384821e9d70e723dea24ee7baa56ccc1f3"
+      }
     }
   ]
 }

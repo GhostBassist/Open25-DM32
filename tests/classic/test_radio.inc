@@ -140,9 +140,74 @@ static void test_classic_idle_rearm(void)
     down.arg=0;CHECK(native_lab_request(&sm,&down)==1);classic_pump();classic_pump();classic_pump();
     CHECK(classic_live->state==NT_RX && !sm.ptt && !classic_live->keyed && !hw.tx_calls);
 }
+/* The queue is empty except for the actual task's retained request. */
+static radio_req_t classic_request;
+static bool classic_retained;
+static radio_settings_t pending_settings;
+static unsigned settings_sent, settings_taken, req_handled;
+#define pdTRUE 1
+#define portMAX_DELAY 0
+#define xSemaphoreTake(...) ((void)0)
+#define xSemaphoreGive(...) ((void)0)
+#define vTaskDelay(...) ((void)0)
+#define xQueueReceive(...) 0
+static void classic_dispatch(void)
+{
+    radio_req_t req=classic_request;
+    bool retained_request=classic_retained;
+    int32_t left=0;(void)left;
+    now+=25;
+    /* The real voice worker renews its RF lease while processing audio. */
+    if(classic_busy){
+        uint8_t state,reason,queued;
+        if(classic_live->config.mode==NT_TRANSMIT)
+            (void)native_lab_live_poll(classic_sid,&state,&reason,&queued);
+        else (void)native_lab_voice_poll(classic_sid,&state,&reason);
+    }
+#include "classic_dispatch.inc"
+    classic_request=req;classic_retained=retained_request;
+    classic_pump();
+    if(native_lab_owns())radio_sm_native_maintenance(&sm,now);
+    else radio_sm_poll(&sm,now);
+}
+static unsigned classic_saved_edit(uint32_t hz)
+{
+    unsigned number=sm.view.channel_number;
+    chans[number]=sm.view.ch;
+    chans[number].rx_hz=chans[number].tx_hz=hz;
+    cp_serial++;
+    return number;
+}
+static void test_classic_saved_refresh(void)
+{
+    classic_retained=false;classic_select(true);
+    unsigned number=classic_saved_edit(146550000);
+    for(unsigned i=0;i<8;i++)classic_dispatch();
+    CHECK(sm.view.channel_number==number && sm.view.ch.rx_hz==146550000);
+    CHECK(sm.codeplug_serial==codeplug_serial());
+    CHECK(classic_live->state==NT_RX && classic_live->config.frequency_hz==146550000);
+
+    classic_select(true);classic_press();
+    uint32_t old_rx=sm.view.ch.rx_hz,old_tx=classic_live->config.frequency_hz;
+    classic_saved_edit(146575000);
+    for(unsigned i=0;i<2;i++)classic_dispatch();
+    CHECK(sm.ptt && classic_live->state==NT_TX && classic_live->config.frequency_hz==old_tx);
+    CHECK(sm.view.ch.rx_hz==old_rx && sm.codeplug_serial!=codeplug_serial());
+    classic_request=(radio_req_t){.type=RREQ_PTT,.arg=0};classic_retained=true;
+    for(unsigned i=0;i<8;i++)classic_dispatch();
+    CHECK(!sm.ptt && sm.view.ch.rx_hz==146575000 && sm.view.ch.tx_hz==146575000);
+    CHECK(classic_live->state==NT_RX && classic_live->config.frequency_hz==146575000);
+
+    /* An existing channel-change handoff must never be overwritten by reload. */
+    classic_select(true);classic_saved_edit(146550000);
+    classic_request=(radio_req_t){.type=RREQ_ZONE,.arg=1};classic_retained=true;
+    for(unsigned i=0;i<8;i++)classic_dispatch();
+    CHECK(!classic_retained && sm.view.zone_index==1 && sm.view.ch.mode==RADIO_MODE_FM);
+    CHECK(sm.view.ch.rx_hz==145500000 && hw.rx_hz==145500000);
+}
 int main(void)
 {
-    int prior=upstream_radio_main();test_classic_ownership();test_classic_idle_rearm();
+    int prior=upstream_radio_main();test_classic_ownership();test_classic_idle_rearm();test_classic_saved_refresh();
     printf("Classic real FM/DMR/P25 admission and ownership: %d failures\n",failures);
     return prior || failures ? 1 : 0;
 }

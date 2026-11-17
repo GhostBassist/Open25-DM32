@@ -18,7 +18,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from tools import codec_cache, classic_channels, sources
+from tools import codec_cache, classic_channels, classic_standard, sources
 UP = ROOT / "research/upstream/radiofoundry"
 PIN = "dfbaf20c400c73e2ccf6edb80af7d1d255bee418"
 DEST = ROOT / "build/radiofoundry-p25"
@@ -57,6 +57,190 @@ def transform(relative, replacements):
             raise SystemExit(f"Pinned patch mismatch: {relative}: {old}")
         content = content.replace(old, new)
     write_owned(DEST / relative, content.encode(), original)
+
+
+# Selected RF-section support from RadioFoundry 9e1f7209 (MIT). Keep the
+# existing base pin and application behavior; these checked replacements and
+# fd6818_setup_b.c are derived together from that reviewed upstream snapshot.
+NRFB_HEADER_PATCHES = [('\t// Band words for a frequency',
+  '\t// Set-up B receiver power words; zero retains the original setup.\n'
+  '\tuint16_t sleep_fm, sleep_dmr, sleep_wake;\n'
+  '\t// Band words for a frequency'),
+ ('extern const fd6818_variant_t fd6818_variant_default;',
+  'extern const fd6818_variant_t fd6818_variant_default;\n'
+  'extern const fd6818_variant_t fd6818_variant_b;\n'
+  'extern const fd6818_variant_t fd6818_variant_b_dmr6943;'),
+ ('#define FD6818_REG_BAND_A', '#define FD6818_CSS_PLL_LOCK\t0x0200u\n#define FD6818_REG_BAND_A'),
+ ('// Analog TX preparation writes',
+  '#define FD6818_LOCK_READS\t3u\n'
+  '#define FD6818_DETECT_RETRY\t3u\n'
+  'bool fd6818_pll_locked(fd6818_t *dev, uint32_t timeout_ms);\n'
+  'uint8_t fd6818_detect(fd6818_t *dev, rfbus_t *bus, const fd6818_variant_t *const *v, uint8_t n, '
+  'uint32_t hz, uint32_t timeout_ms);\n'
+  '// Analog TX preparation writes')]
+
+NRFB_DRIVER_PATCHES = [('void fd6818_set_bandwidth',
+  'bool fd6818_pll_locked(fd6818_t *dev, uint32_t timeout_ms)\n'
+  '{\n'
+  '\t// The bit can read set once while the synthesizer settles: a lock is FD6818_LOCK_READS reads '
+  'in a row, 1 ms apart\n'
+  '\tuint8_t run = 0;\n'
+  '\tfor (uint32_t ms = 0;; ms++) {\n'
+  '\t\tif ((fd6818_read(dev, FD6818_REG_CSS_STATUS) & FD6818_CSS_PLL_LOCK) != 0u) {\n'
+  '\t\t\tif (++run >= FD6818_LOCK_READS) {\n'
+  '\t\t\t\treturn true;\n'
+  '\t\t\t}\n'
+  '\t\t} else {\n'
+  '\t\t\trun = 0;\n'
+  '\t\t\tif (ms >= timeout_ms) {\n'
+  '\t\t\t\treturn false;\n'
+  '\t\t\t}\n'
+  '\t\t}\n'
+  '\t\trfbus_delay_ms(dev->bus, 1);\n'
+  '\t}\n'
+  '}\n'
+  '\n'
+  'static bool detect_try(fd6818_t *dev, rfbus_t *bus, const fd6818_variant_t *v, uint32_t hz, '
+  'uint32_t timeout_ms)\n'
+  '{\n'
+  '\tfd6818_attach_variant(dev, bus, v);\n'
+  '\tfd6818_init(dev);\n'
+  '\tfd6818_set_mode(dev, FD6818_MODE_FM);\n'
+  '\tfd6818_set_freq(dev, hz);\n'
+  '\tfd6818_set_state(dev, FD6818_STATE_RX);\n'
+  '\treturn fd6818_pll_locked(dev, timeout_ms);\n'
+  '}\n'
+  '\n'
+  'uint8_t fd6818_detect(fd6818_t *dev, rfbus_t *bus, const fd6818_variant_t *const *v, uint8_t n, '
+  'uint32_t hz,\n'
+  '\t\t      uint32_t timeout_ms)\n'
+  '{\n'
+  '\tfor (uint8_t i = 0; i < n; i++) {\n'
+  '\t\tif (!detect_try(dev, bus, v[i], hz, timeout_ms)) {\n'
+  '\t\t\tcontinue;\n'
+  '\t\t}\n'
+  '\t\t// A later set-up can lock a section an earlier one is right for: an earlier one that was '
+  'only slow gets a\n'
+  '\t\t// longer wait before the later one is taken\n'
+  '\t\tfor (uint8_t j = 0; j < i; j++) {\n'
+  '\t\t\tif (detect_try(dev, bus, v[j], hz, FD6818_DETECT_RETRY * timeout_ms)) {\n'
+  '\t\t\t\treturn j;\n'
+  '\t\t\t}\n'
+  '\t\t}\n'
+  '\t\tif (i > 0 && !detect_try(dev, bus, v[i], hz, timeout_ms)) {\n'
+  '\t\t\tbreak;\t\t// locked once, not again: neither is trusted\n'
+  '\t\t}\n'
+  '\t\treturn i;\n'
+  '\t}\n'
+  '\tfd6818_attach_variant(dev, bus, v[0]);\n'
+  '\tfd6818_init(dev);\n'
+  '\tfd6818_set_mode(dev, FD6818_MODE_FM);\n'
+  '\treturn n;\n'
+  '}\n'
+  '\n'
+  'void fd6818_set_bandwidth'),
+ ('void fd6818_rx_sleep(fd6818_t *dev, bool sleep, fd6818_mode_t mode)\n'
+  '{\n'
+  '\tif (sleep) {\n'
+  '\t\tfd6818_write(dev, FD6818_REG_STATE, FD6818_STATE_IDLE);\n'
+  '\t\tfd6818_write(dev, FD6818_REG_POWER, mode == FD6818_MODE_DMR ? 0x1D00 : 0x1D11);\n'
+  '\t} else {\n'
+  '\t\tfd6818_write(dev, FD6818_REG_POWER, 0x1F1F);\n'
+  '\t\tfd6818_write(dev, FD6818_REG_POWER, 0x1F0F);\n'
+  '\t}\n'
+  '}',
+  'void fd6818_rx_sleep(fd6818_t *dev, bool sleep, fd6818_mode_t mode)\n'
+  '{\n'
+  '\tconst fd6818_variant_t *v = dev->variant;\n'
+  '\tif (sleep) {\n'
+  '\t\tfd6818_write(dev, FD6818_REG_STATE, FD6818_STATE_IDLE);\n'
+  '\t\tif (v->sleep_wake != 0u) {\n'
+  '\t\t\tfd6818_write(dev, FD6818_REG_POWER, mode == FD6818_MODE_DMR ? v->sleep_dmr : '
+  'v->sleep_fm);\n'
+  '\t\t} else {\n'
+  '\t\t\tfd6818_write(dev, FD6818_REG_POWER, mode == FD6818_MODE_DMR ? 0x1D00 : 0x1D11);\n'
+  '\t\t}\n'
+  '\t} else if (v->sleep_wake != 0u) {\n'
+  '\t\tfd6818_write(dev, FD6818_REG_POWER, v->sleep_wake);\n'
+  '\t} else {\n'
+  '\t\tfd6818_write(dev, FD6818_REG_POWER, 0x1F1F);\n'
+  '\t\tfd6818_write(dev, FD6818_REG_POWER, 0x1F0F);\n'
+  '\t}\n'
+  '}')]
+
+NRFB_BOARD_PATCHES = [('#define FD_REG_RSSI\t\t0x67u',
+  '#define FD_REG_RSSI\t\t0x67u\n'
+  "// Two RF sections (hardware-dm32.md 8.10): the newer one's FD6818 doesn't lock on the default set-up "
+  'and takes set-up B,\n'
+  '// with these writes on top. Which one the radio has is found at start-up (rf_detect)\n'
+  '#define RF_PROBE_HZ\t\t145000000u\t// in band on both sections\n'
+  "#define RF_LOCK_MS\t\t20u\t\t// the probe's wait for the lock bit after the tune\n"
+  '#define FD_REG_TX_AUX\t\t0x50u\t\t// set-up B: around each switch to TX\n'
+  '#define FD_TX_AUX_FM_PRE\t0xBB20u\t\t// FM, before the switch\n'
+  '#define FD_TX_AUX_FM\t\t0x3B20u\t\t// FM, after\n'
+  '#define FD_TX_AUX_DMR\t\t0x3B18u\t\t// DMR burst, after\n'
+  '#define FD_REG_CSS_A\t\t0x2Eu\t\t// set-up B: two words by the receive sub-audio type\n'
+  '#define FD_REG_CSS_B\t\t0x2Fu\n'
+  '#define FD_REG40_BASE\t\t0x3480u\t\t// set-up B, FM transmit: 0x40 = this + the calibration byte\n'
+  '#define C7_RF_MODE_RX_INVERT\t(1u << 15)\t// HR_C7000 RF_MODE: RX IQ invert, off on the newer '
+  'section\n'),
+ ('static hrc7000_t modem;', 'static hrc7000_t modem;\nstatic bool rf_b;\nstatic bool rf_unlocked;'),
+ ('return bw == RADIO_BW_25K ? FD6818_BW_FM_25K : FD6818_BW_FM_12K5;',
+  'return bw == RADIO_BW_25K ? fd.variant->bw_fm_25k : fd.variant->bw_fm_12k5;'),
+ ('static void write_mod_bias',
+  'static void fd_rx_subtone(fd6818_tone_t type, uint16_t value)\n'
+  '{\n'
+  '\tfd6818_set_rx_tone(&fd, type, value);\n'
+  '\tif (rf_b) {\n'
+  '\t\tbool ctcss = type == FD6818_TONE_CTCSS;\n'
+  '\t\tfd6818_write(&fd, FD_REG_CSS_A, ctcss ? 0x8608u : 0x9608u);\n'
+  '\t\tfd6818_write(&fd, FD_REG_CSS_B, ctcss ? 0x1890u : 0x9890u);\n'
+  '\t}\n'
+  '}\n'
+  '\n'
+  'static void write_mod_bias'),
+ ('static void dmr_rf_switch(bool tx)\n{',
+  'static void dmr_rf_switch(bool tx)\n{\n\tif (tx && rf_unlocked) return;'),
+ ('FD6818_BW_DMR', 'fd.variant->bw_dmr', 3),
+ ('\tfd6818_dmr_burst_at(&fd, tx, fd.variant->bw_dmr, synth_hz(tx ? tx_hz : rx_hz));',
+  '\tfd6818_dmr_burst_at(&fd, tx, fd.variant->bw_dmr, synth_hz(tx ? tx_hz : rx_hz));\n'
+  '\tif (tx && rf_b) fd6818_write(&fd, FD_REG_TX_AUX, FD_TX_AUX_DMR);'),
+ ('if (dmr_keyed) {', 'if (dmr_keyed && !rf_unlocked) {'),
+ ('static void init(void)',
+  '// Which RF section the radio has (hardware-dm32.md 8.10): the default set-up, tuned, locks the classic '
+  "section's\n"
+  "// synthesizer and never the newer one's; set-up B locks both, so the default goes first "
+  '(fd6818_detect). Neither\n'
+  '// locking leaves the default and blocks transmitting: on the wrong set-up the newer section '
+  'transmitted 74 MHz off\n'
+  'static void rf_detect(void)\n'
+  '{\n'
+  '\tstatic const fd6818_variant_t *const v[] = { &fd6818_variant_default, &fd6818_variant_b_dmr6943 };\n'
+  '\tuint8_t i = fd6818_detect(&fd, &fd_bus.bus, v, 2, RF_PROBE_HZ, RF_LOCK_MS);\n'
+  '\trf_b = i == 1;\n'
+  '\trf_unlocked = i == 2;\n'
+  '\tfd6818_set_state(&fd, FD6818_STATE_IDLE);\n'
+  '\tif (rf_b) {\n'
+  '\t\thrc7000_wr(&modem, C7_RF_MODE, hrc7000_rd(&modem, C7_RF_MODE) & ~C7_RF_MODE_RX_INVERT);\n'
+  '\t}\n'
+  '}\n'
+  '\n'
+  'static void init(void)'),
+ ('\tfd6818_attach(&fd, &fd_bus.bus);\n\tfd6818_init(&fd);\n\tfd6818_set_mode(&fd, FD6818_MODE_FM);',
+  '\trf_detect();'),
+ ('(am && mode != RADIO_MODE_FM)', '(am && (mode != RADIO_MODE_FM || rf_b))'),
+ ('fd6818_set_rx_tone(&fd, fd_tone(tone != NULL ? tone->type : TONE_NONE), tone != NULL ? tone->value : '
+  '0);',
+  'fd_rx_subtone(fd_tone(tone != NULL ? tone->type : TONE_NONE), tone != NULL ? tone->value : 0);'),
+ ('if (!board_in_band(hz, true)) {', 'if (!board_in_band(hz, true) || rf_unlocked) {'),
+ ('\t\tfd6818_fm_tx_prepare(&fd);',
+  '\t\tfd6818_fm_tx_prepare(&fd);\n'
+  '\t\tif (rf_b && bf_cal_valid()) fd6818_write(&fd, FD6818_REG_BAND_B,\n'
+  '\t\t\t(uint16_t)(FD_REG40_BASE + bf_cal_tx_byte(hz, BF_ROW_REG40)));'),
+ ('\t\tfd6818_set_state(&fd, FD6818_STATE_TX);',
+  '\t\tif (rf_b) fd6818_write(&fd, FD_REG_TX_AUX, FD_TX_AUX_FM_PRE);\n'
+  '\t\tfd6818_set_state(&fd, FD6818_STATE_TX);\n'
+  '\t\tif (rf_b) { fd6818_write(&fd, FD_REG_TX_AUX, FD_TX_AUX_FM); hal_delay_ms(1); }')]
 
 
 def prepare():
@@ -148,7 +332,7 @@ def prepare():
         ('\t.power_on_level = GPS_POWER_ON_LEVEL,\n};', '\t.power_on_level = GPS_POWER_ON_LEVEL,\n};\n#endif'),
     ])
     transform("boards/dm32/dm32.h", [("#include <stdbool.h>", "#include <stdbool.h>\n#if CONFIG_P25_NATIVE\n#include \"native_test.h\"\nextern nt_ops dm32_native_ops;\n#endif\n#if CONFIG_DEV_TX\nvoid dm32_native_mic_route(bool on);\n#endif")])
-    transform("boards/dm32/radio_dm32.c", [
+    transform("boards/dm32/radio_dm32.c", NRFB_BOARD_PATCHES + [
         # Own the microphone route before any preemptible TX setup writes.
         ('\thrc_dac_b_power(true);\n\tif (mode == RADIO_MODE_DMR) {',
          '\thrc_dac_b_power(true);\n\ttransmitting = true;\n\tif (mode == RADIO_MODE_DMR) {'),
@@ -180,7 +364,12 @@ def prepare():
     transform("drivers/flash/spi_nor/spi_nor.c", [
         ('#include "spi_nor.h"', '#include "spi_nor.h"\n#include "config.h"'),
         ('static bool write_enable(const spi_nor_t *nor)\n{', 'static bool write_enable(const spi_nor_t *nor)\n{\n#if CONFIG_FIRSTBOOT\n\treturn firstboot_deny(FB_NOR_WRITE_ENABLE);\n#endif')])
-    transform("drivers/rf/fd6818/fd6818.c", [
+    transform("drivers/rf/fd6818/fd6818.h", NRFB_HEADER_PATCHES)
+    write_owned(DEST / "drivers/rf/fd6818/fd6818_setup_b.c",
+                (ROOT / "integration/radiofoundry/rf/fd6818_setup_b.c").read_bytes())
+    transform("drivers/rf/fd6818/fd6818.c", NRFB_DRIVER_PATCHES + [
+        # Preserve Classic's FM-tone to DMR handoff fix for the original setup.
+        ('static const regval_t dmr_table[] = {', 'static const regval_t dmr_table[] = {\n\t{ 0x51, 0x0000 }, // Digital modulation comes from the C7000.'),
         ('#include "fd6818.h"', '#include "fd6818.h"\n#include "config.h"'),
         ('void fd6818_write(fd6818_t *dev, uint8_t reg, uint16_t val)\n{', 'void fd6818_write(fd6818_t *dev, uint8_t reg, uint16_t val)\n{\n#if CONFIG_FIRSTBOOT\n\tif (reg==FD6818_REG_STATE && val==FD6818_STATE_TX && !firstboot_tx_allowed(FB_FD_TX)) { firstboot_deny(FB_FD_TX); return; }\n#endif')])
     transform("core/storage/storage.c", [
@@ -201,7 +390,7 @@ def prepare():
     transform("core/radio/radio.h", [("void radio_req_ptt(bool down);", "void radio_req_ptt(bool down);\n#if CONFIG_DEV_TX\nvoid radio_req_physical_ptt(bool down);\n#endif")])
     transform("core/radio/radio_task.c", [
         ('#include "config.h"', '#include "config.h"\n#if CONFIG_P25_NATIVE\n#include "native_modem/native_lab.h"\n#endif'),
-        ('for (;;) {\n\t\tTickType_t due', 'radio_req_t req;\n    bool retained_request=false;\n\tfor (;;) {\n#if CONFIG_P25_NATIVE\n\t\tnative_lab_service(&sm,hal_micros());\n#endif\n\t\tTickType_t due'),
+        ('for (;;) {\n\t\tTickType_t due', 'radio_req_t req;\n    bool retained_request=false;\n\tfor (;;) {\n#if CONFIG_P25_NATIVE\n#if CONFIG_P25_CHANNELS\n        /* Saved edits use the existing retained receiver handoff. */\n        if (!retained_request && !sm.ptt && sm.view.state!=RS_TX &&\n            native_lab_owns() && codeplug_serial()!=sm.codeplug_serial) {\n            req=(radio_req_t){.type=RREQ_RELOAD};\n            retained_request=true;\n        }\n#endif\n\t\tnative_lab_service(&sm,hal_micros());\n#endif\n\t\tTickType_t due'),
         ('radio_req_t req;\n\t\tif (xQueueReceive(requests, &req, left > 0 ? (TickType_t)left : 0) == pdTRUE) {', '#if CONFIG_P25_NATIVE\n\t\tint32_t native_wait=(int32_t)native_lab_wait_ms();\n\t\tif (native_wait && left>native_wait) left=native_wait;\n#endif\n        if (retained_request || xQueueReceive(requests,&req,left>0?(TickType_t)left:0)==pdTRUE) {\n            retained_request=false;'),
         ('req_handled++;', 'req_handled++;\n#if CONFIG_P25_NATIVE\n                int handled=native_lab_request(&sm,&req);\n                if(handled==NATIVE_REQUEST_WAIT){retained_request=true;vTaskDelay(1);break;}\n                if(handled)continue;\n#endif'),
         ('TickType_t now = xTaskGetTickCount();', 'TickType_t now = xTaskGetTickCount();\n#if CONFIG_P25_NATIVE\n\t\tif (native_lab_owns()) {\n            next_tick=now+tick_period;\n#if CONFIG_P25_CHANNELS\n            if((int32_t)(now-next_poll)>=0){\n                radio_sm_native_maintenance(&sm,hal_millis());\n                next_poll=now+period;\n            }\n#else\n            next_poll=now+period;\n#endif\n            publish();continue;\n        }\n#endif'),
@@ -229,6 +418,7 @@ def prepare():
         ('bsr      \\t0x304ed8c', 'bsr      \\t0x304ED8C'),
     ])
     classic_channels.prepare(transform)
+    classic_standard.prepare(DEST,write_owned)
     # A pending shared beep remains owned by beep.c when digital PCM stops.
     # Reuse the existing own-stream startup and failure cleanup at handoff.
     beep_source=(UP/'core/radio/beep.c').read_text()
@@ -366,7 +556,7 @@ def main():
     suffix += ("-lean" if args.lean else "") + ("-cpu" if args.cpu_profile else "") + ("-dev" if args.dev_update else "") + ("-tx" if args.tx_bench else "")
     if args.classic:
         suffix='classic'
-        identity='classic-0.1.0-rc1-r8'
+        identity='classic-0.1.0-rc1-r9'
     b = f"build/dm32-p25-{suffix}"
     command = ["make", "-j8", "BOARD=dm32", f"CROSS={ROOT}/toolchain/bin/csky-elf-", f"BUILD={b}",
         "CONFIG_P25=" + ("n" if args.disable else "y"), "CONFIG_P25_NATIVE="+("y" if native else "n"), "CONFIG_DMR_IP_GATEWAY=n", "CONFIG_NET_PPP=n",
@@ -473,7 +663,7 @@ def main():
              "--dir", ROOT / "research/originals", "-o", prefix.with_suffix(".codec.bin")], cwd=DEST)
         if not prefix.with_suffix(".codec.bin").exists():
             raise SystemExit("No recognized local stock codec; not claiming preserved DMR voice")
-    inputs = [ROOT / "tools/build_radiofoundry.py", ROOT / "tools/codec_cache.py", ROOT / "tools/classic_channels.py",
+    inputs = [ROOT / "tools/build_radiofoundry.py", ROOT / "tools/codec_cache.py", ROOT / "tools/classic_channels.py", ROOT / "tools/classic_standard.py",
               ROOT / "tools/sources.py", ROOT / "sources.lock.json", ROOT / "LICENSE",
               ROOT / "src/runtime/memory.c", ROOT / "LICENSES/RadioFoundry-MIT.txt"] + [p for folder in
               (ROOT / "src/p25", ROOT / "src/modem", ROOT / "src/codec", ROOT / "integration/radiofoundry",

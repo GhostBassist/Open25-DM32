@@ -36,6 +36,7 @@
 !/integration/radiofoundry/p25_lab.c
 !/integration/radiofoundry/p25_lab.h
 !/integration/radiofoundry/pcm_playback.inc
+!/integration/radiofoundry/rf/fd6818_setup_b.c
 !/sources.lock.json
 !/src/codec/dm32_imbe.h
 !/src/modem/native_test.c
@@ -87,6 +88,7 @@
 !/tests/native/test_lab.c
 !/tests/native/test_live_start.c
 !/tests/native/test_native.c
+!/tests/native/test_nrfb.inc
 !/tests/native/test_port.c
 !/tests/native/test_tx_owner.c
 !/tests/native/test_update_owner.c
@@ -164,6 +166,7 @@
 !/tools/test_classic.py
 !/tools/test_codec_slot.py
 !/tools/test_native_modem.py
+!/tools/test_nrfb.py
 !/tools/test_receive_audio.py
 !/tools/test_voice.py
 /research/
@@ -177,3 +180,16 @@ __pycache__/
 /experiments/codec/out/
 /tests/protocol/vectors/
 /tests/protocol/results.json
+!/tools/classic_standard.py
+!/integration/radiofoundry/codeplug/classic_standard.inc
+!/third_party/rf_codeplug/README.md
+!/third_party/rf_codeplug/UPSTREAM.json
+!/third_party/rf_codeplug/core/codeplug/codeplug_kv.c
+!/third_party/rf_codeplug/core/codeplug/codeplug_kv.h
+!/third_party/rf_codeplug/core/codeplug/codeplug_modes.h
+!/third_party/rf_codeplug/core/codeplug/codeplug_records.c
+!/third_party/rf_codeplug/core/codeplug/codeplug_records.h
+!/third_party/rf_codeplug/core/codeplug/codeplug_tag.c
+!/third_party/rf_codeplug/core/codeplug/codeplug_tag.h
+!/third_party/rf_codeplug/core/p25/p25_codeplug.c
+!/third_party/rf_codeplug/core/p25/p25_codeplug.h

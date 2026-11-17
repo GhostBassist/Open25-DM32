@@ -66,7 +66,7 @@ void p25_voice_rx_dibit(p25_voice *v, uint8_t dibit)
             v->crypto_clear = 0;
         v->active_group = d.talkgroup;
         v->active_source = d.source_id;
-        v->have_group = d.talkgroup && d.source_id && d.source_id <= 9999999u;
+        v->have_group = d.talkgroup && d.source_id && d.source_id <= 0xFFFFFEu;
         if (!d.clear_voice) v->crypto_clear = 0;
         /* LC's unprotected bit alone cannot override an encrypted ALGID.
          * Late entry waits for a valid LDU2 encryption sync. */
@@ -128,7 +128,7 @@ static int fail(p25_voice *v)
 int p25_voice_tx_begin(p25_voice *v, const p25_call *call)
 {
     if (!call || v->transmitting || !call->talkgroup ||
-        !call->source_id || call->source_id > 9999999u) return 0;
+        !call->source_id || call->source_id > 0xFFFFFEu) return 0;
     p25_voice_tx_abort(v);
     v->fault = 0;
     if (p25_encode_hdu(call, v->queue[0].data)) return 0;

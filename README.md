@@ -6,11 +6,14 @@
 [![Donate via Ko-fi](https://img.shields.io/badge/Donate-Ko--fi-FF6433?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/kd8zmm)
 
 Open25-DM32 brings P25 to the DM-32, with on-radio programming and tools for
-firmware installation, backup, and recovery. Classic keeps the familiar
-RadioFoundry interface with FM, DMR, and conventional P25. Next introduces a
-new interface with FM and conventional/trunked P25.
+firmware installation, backup, and recovery. Classic has a compact
+interface with a white default theme, FM, DMR, and conventional P25. Next
+introduces a new interface with FM and conventional/trunked P25.
+
+Report firmware and P25 problems to **[Open25-DM32 issues](https://github.com/tylerwatt12/Open25-DM32/issues)**.
 
 **[Open the tools](https://kd8zmm.com/open25-dm32/)** ·
+**[Classic CPS](https://kd8zmm.com/open25-dm32/classic-cps/)** ·
 **[Next CPS](https://kd8zmm.com/open25-dm32/cps/)** ·
 **[Flasher v3](https://kd8zmm.com/open25-dm32/v3/firmware.html)**
 
@@ -19,10 +22,10 @@ new interface with FM and conventional/trunked P25.
 | Open25-DM32 Classic | Open25-DM32 Next |
 | :---: | :---: |
 | ![Classic conventional P25 home screen](images/classic-home.png) | ![Next trunked P25 home screen](images/next-home.png) |
-| Conventional P25 · Original RadioFoundry interface | Trunked P25 · New interface |
+| Conventional P25 · White default theme | Trunked P25 · New interface |
 | ![Classic P25 channel settings with talkgroup and NAC](images/classic-settings.png) | ![Next P25 system settings with WACN and System ID](images/next-settings.png) |
 | P25 channel settings: talkgroup, NAC, and radio ID | Trunked system settings: WACN and System ID |
-| **0.1.0-rc1-r8 release candidate available** | **In development · source private.** |
+| **0.1.0-rc1-r9 RFKV release candidate available** | **In development · source private.** |
 
 | Feature | Classic | Next |
 | --- | --- | --- |
@@ -31,12 +34,12 @@ new interface with FM and conventional/trunked P25.
 | Conventional P25 | ✅ | ✅ |
 | Trunked P25 Phase 1 | ❌ | ✅ |
 | P25 encryption | ❌ | ✅ AES-256, DES-OFB, ADP/RC4 |
-| Programming | FPP · RadioFoundry CPS (FM/DMR) | FPP · Browser CPS |
+| Programming | FPP · Classic CPS (FM/DMR/P25) | FPP · Next CPS |
 
-FPP means programming from the radio's front panel. **Classic P25 channels must
-be programmed on the radio.** The RadioFoundry CPS does not recognize P25:
-it displays those channels as FM, and editing one can change it to FM when
-written back. Use its editor for FM/DMR channels only.
+FPP means programming from the radio's front panel. **Open25-DM32 Classic CPS**
+supports Classic's FM, DMR and conventional P25 channels, including separate RX
+and TX NACs, talkgroup and radio ID. Use Classic CPS for Classic and Next CPS
+for Next; their supported modes and firmware requirements differ.
 
 Classic's P25 operation uses saved channels. P25 scanning, VFO operation, and
 private calls are not available in Classic.
@@ -50,11 +53,20 @@ Encryption support is still being tested with other radios and systems.
 ## Release status
 
 **Classic and Next are alpha firmware, and testing is still underway.**
-Classic **0.1.0-rc1-r8** is available in the
+Classic **0.1.0-rc1-r9** is available in the
 [Flasher v3](https://kd8zmm.com/open25-dm32/v3/firmware.html), under
 **Open25-DM32 Classic → Standard · DM-32UV**. Final on-air qualification is
 incomplete; compatibility with every DM-32UV hardware revision is not established.
 Next remains unavailable, with its release date to be determined.
+
+Revision r9 switches saved P25 programming to RadioFoundry RFKV mode records
+and is released with the matching Classic CPS. Retired Classic A5/D/E records
+are no longer read or converted. Recreate older programming in the current CPS;
+the radio preserves unsupported old bytes until an explicit **Start new**.
+The software suites cover refusal without writes, explicit initialization,
+RFKV storage and P25 target validation. On-radio qualification of this revision
+remains incomplete; the existing intermittent P25 startup and PL/DTMF limitations
+remain documented below.
 
 Revision r8 publishes the project firmware, P25 CAI library and full-rate IMBE
 codec under MIT, with the dependencies' original notices retained. It adds
@@ -70,8 +82,9 @@ P25 acoustic changes and every hardware revision have not been fully qualified.
 intermittent P25 PTT startup failure with no RF has been reported and remains
 under investigation.
 
-TX NAC defaults to **Same as RX**. A channel with a separate TX NAC requires
-split-NAC-aware firmware; older Classic versions skip those channels.
+TX NAC defaults to **Same as RX**. It inherits the receive NAC, using `293`
+when RX is wildcard `F7E`. An explicit TX NAC, including `000` or a number equal
+to RX, stays fixed when RX changes. Explicit TX `F7E` and `F7F` are refused.
 
 Revision r6 added RadioFoundry-compatible codec layouts through NRFB .050 and
 extended the modem table window to match. The flasher uses the codec
@@ -106,8 +119,8 @@ use only this radio's backup.
 - **[Next CPS](https://kd8zmm.com/open25-dm32/cps/):** program Next's channels,
   zones, talkgroups, and trunked systems from your browser. Read and write the
   radio over USB, or save your programming to a file.
-- **[RadioFoundry CPS](https://radiofoundry.org/codeplug/index.html):** edit
-  Classic's FM and DMR channels. Program Classic's P25 settings on the radio.
+- **[Classic CPS](https://kd8zmm.com/open25-dm32/classic-cps/):** program Classic's
+  FM, DMR and conventional P25 channels in your browser, or save BIN/CSV files.
 - **[Flasher v3](https://kd8zmm.com/open25-dm32/v3/firmware.html):** install
   or update firmware, make full-radio backups, restore a backup, or prepare a
   factory update file.
