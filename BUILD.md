@@ -55,7 +55,7 @@ ZIP offered by Flasher v3:
 ```sh
 python3 tools/prepare_web_firmware.py \
   --image build/radiofoundry-p25/build/dm32-p25-classic/rfoundry_dm32.bin \
-  --out artifacts/firmware/Open25-DM32-Classic-0.1.0-rc1-r9-rfkv-application.zip
+  --out artifacts/firmware/Open25-DM32-Classic-0.1.0-rc1-r10-rfkv-application.zip
 ```
 
 The packager verifies the application and linker-map hashes against the build
@@ -63,7 +63,7 @@ manifest, checks the reserved codec layout, and writes only `firmware.json` and
 `application.bin`. The manifest records `codecTablesEnd` from the verified
 linker map; older ZIPs without that field retain the old table limit. It refuses
 to replace an existing ZIP. The runtime version is
-`open25-classic-0.1.0-rc1-r9`; `r9` identifies this catalog/package revision.
+`open25-classic-0.1.0-rc1-r10`; `r10` identifies this catalog/package revision.
 Firmware binaries and ZIPs stay in ignored output directories and are never
 committed to GitHub. No build or packaging command opens or installs a radio.
 
@@ -120,3 +120,22 @@ New standard P25 channels select Normal (all groups on the RX NAC) or Selective
 (the saved talkgroup). Explicit TX NAC `000` and fixed TX equal to RX remain
 distinct from inheritance. Conventional unit IDs use the upstream 24-bit range
 through `0xFFFFFE`; the selected codec and voice bitstream are unchanged.
+
+## RX-only defaults in r10
+
+The radio editor and matching Classic CPS default new/copied channels outside
+144–148 and 420–450 MHz to RX-only. A committed edit that changes actual TX to
+an outside frequency restores RX-only, including RX-offset and Talkaround
+changes. Existing RFKV records and imported programming retain their saved
+choices; the encoder and storage format are unchanged.
+
+Disabling RX-only outside those ranges opens the existing confirmation owner.
+Keep RX-only is selected by default; explicit Enable TX changes the draft's
+existing flag and normal Save persists it. No acknowledgement flag or per-PTT
+prompt is added. The independent P25 transmit-frequency restriction and other
+admission checks remain active.
+
+The full UI regression covers new/copy defaults, effective TX edits, confirmation
+accept/cancel, in-band behavior, existing-record preservation and display fit.
+Run the normal full host suite and target stack/ABI/identical-rebuild checks
+above before packaging a release.

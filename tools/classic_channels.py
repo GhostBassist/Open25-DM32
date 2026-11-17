@@ -163,6 +163,80 @@ static inline bool codeplug_p25_valid(const channel_t *ch)
         ('if (ced_edit != CE_RX && ced_edit != CE_TX && ced_edit != CE_ID)', 'if (ced_edit != CE_RX && ced_edit != CE_TX && ced_edit != CE_ID\n#if CONFIG_P25_CHANNELS\n\t\t\t&& ced_edit != CE_P25_TG && ced_edit != CE_P25_ID\n#endif\n\t\t\t)'),
         ('\tcase CE_MODE: c->mode = c->mode == RADIO_MODE_DMR ? RADIO_MODE_FM : RADIO_MODE_DMR; break;', '\tcase CE_MODE:\n#if CONFIG_P25_CHANNELS\n\t\tif (c->mode == RADIO_MODE_DMR) {\n\t\t\tc->mode = RADIO_MODE_P25; c->p25_nac = 0x293; c->p25_tx_nac_override=0;\n\t\t\tc->p25_tg = 1; c->p25_squelch=1; c->p25_id = 1; c->dmr_id = 1; c->bw = RADIO_BW_12K5;\n\t\t\tc->dmo = c->roam = c->vox = false;\n\t\t} else if (codeplug_mode_p25(c->mode)) {\n\t\t\tc->mode = RADIO_MODE_FM; c->contact = c->listen_list = c->dmr_id = 0;\n\t\t} else\n#endif\n\t\t\tc->mode = c->mode == RADIO_MODE_DMR ? RADIO_MODE_FM : RADIO_MODE_DMR;\n\t\tbreak;\n#if CONFIG_P25_CHANNELS\n\tcase CE_P25_NAC: ced_edit = r; ced_val = c->p25_nac; ced_len = 0; break;\n    case CE_P25_TX_NAC: ced_edit=r; ced_val=codeplug_p25_tx_nac(c); ced_len=c->p25_tx_nac_override ? 0 : 3; break;\n\tcase CE_P25_TG:\n\tcase CE_P25_ID:\n#endif'),
         ('ced_edit == CE_TX_TONE) && ced_len > 0)', 'ced_edit == CE_TX_TONE\n#if CONFIG_P25_CHANNELS\n             || ced_edit == CE_P25_TG || ced_edit == CE_P25_ID\n#endif\n             ) && ced_len > 0)'),
+        # Editor-only defaults/confirmation; saved/imported programming is unchanged.
+        ('static channel_t ced_orig;', 'static char ced_msg[64];\t// channel editor toast/confirmation text\nstatic channel_t ced_orig;'),
+        ('static void ced_rx_band(channel_t *c)', '''static uint32_t ced_tx_hz(const channel_t *c)
+{
+    return c->dmo || !c->tx_hz ? c->rx_hz : c->tx_hz;
+}
+
+static bool ced_outside_ham(const channel_t *c)
+{
+    uint32_t hz = ced_tx_hz(c);
+    return !((hz >= 144000000u && hz <= 148000000u) ||
+             (hz >= 420000000u && hz <= 450000000u));
+}
+
+static void ced_rx_band(channel_t *c)'''),
+        ('\tced_rx_band(&ced_ch);\n}', '\tced_rx_band(&ced_ch);\n\tif (ced_outside_ham(&ced_ch)) ced_ch.rx_only = true;\n}'),
+        ('\t\tced_ch.roam = false;\n\t\tchar name', '\t\tced_ch.roam = false;\n\t\tif (ced_outside_ham(&ced_ch)) ced_ch.rx_only = true;\n\t\tchar name'),
+        ('static void ced_save(bool as_new)\n{\n\tstatic char msg[32];',
+         'static void ced_save(bool as_new)\n{\n\tif (as_new && ced_outside_ham(&ced_ch)) ced_ch.rx_only = true;'),
+        ('sb_init(&b, msg, sizeof msg);\n\tsb_str(&b, as_new', 'sb_init(&b, ced_msg, sizeof ced_msg);\n\tsb_str(&b, as_new'),
+        ('\tui_toast(msg);\n}\n\n// The tone typed', '\tui_toast(ced_msg);\n}\n\n// The tone typed'),
+        ('static void ced_commit(void)\n{\n\tchannel_t *c = &ced_ch;',
+         'static void ced_commit(void)\n{\n\tchannel_t *c = &ced_ch;\n\tuint32_t before = ced_tx_hz(c);'),
+        ('\tced_edit = CE_NONE;\n}\n\nstatic bool chinfo_key',
+         '\tif (ced_tx_hz(c) != before && ced_outside_ham(c)) c->rx_only = true;\n\tced_edit = CE_NONE;\n}\n\nstatic bool chinfo_key'),
+        ('\tuint8_t r = ced_rows[i];\n\tswitch (r)', '\tuint8_t r = ced_rows[i];\n\tuint32_t before = ced_tx_hz(c);\n\tswitch (r)'),
+        ('case CE_RX_ONLY: c->rx_only = !c->rx_only; break;', '''case CE_RX_ONLY:
+        if (!c->rx_only) c->rx_only = true;
+        else if (ced_outside_ham(c)) ui_push(SCR_CONFIRM, 1);
+        else c->rx_only = false;
+        break;'''),
+        ('\tui_dirty();\n#else\n\t(void)i;\n\t(void)hold;\n\tchlist_tune',
+         '\tif (ced_tx_hz(c) != before && ced_outside_ham(c)) c->rx_only = true;\n\tui_dirty();\n#else\n\t(void)i;\n\t(void)hold;\n\tchlist_tune'),
+        ('static void confirm_item(uint16_t i, ui_item_t *it)\n{', '''static void confirm_item(uint16_t i, ui_item_t *it)
+{
+#if CONFIG_CHANNEL_EDIT
+    if (ui_frame()->arg == 1) {
+        str_copy(it->label, sizeof it->label, i == 0 ? TR("Keep RX-only") : TR("Enable TX"));
+        if (i == 1) it->flags |= UI_ITEM_WARN;
+        return;
+    }
+#endif'''),
+        ('static void confirm_select(uint16_t i, bool hold)\n{\n\t(void)hold;', '''static void confirm_select(uint16_t i, bool hold)
+{
+    (void)hold;
+#if CONFIG_CHANNEL_EDIT
+    if (ui_frame()->arg == 1) {
+        if (i == 1) ced_ch.rx_only = false;
+        ui_pop();
+        return;
+    }
+#endif'''),
+        ('static const char *confirm_body(void)\n{', '''static const char *confirm_body(void)
+{
+#if CONFIG_CHANNEL_EDIT
+    if (ui_frame()->arg == 1) {
+        sbuf_t b;
+        sb_init(&b, ced_msg, sizeof ced_msg);
+        sb_str(&b, TR("Outside ham bands")); sb_str(&b, "\\nTX: ");
+        sb_freq(&b, ced_tx_hz(&ced_ch)); sb_str(&b, " MHz\\n");
+        sb_str(&b, TR("PTT may transmit."));
+        return ced_msg;
+    }
+#endif'''),
+        ('static const ui_scr_def_t confirm_screen = {', '''static const char *confirm_title(void)
+{
+#if CONFIG_CHANNEL_EDIT
+    if (ui_frame()->arg == 1) return TR("Enable TX?");
+#endif
+    return TR("Factory Reset");
+}
+
+static const ui_scr_def_t confirm_screen = {'''),
+        ('.prefix = TRN("Factory Reset"), .hint', '.title = confirm_title, .hint'),
     ])
     transform('core/ui/ui_screens.c', [
         (boot, r'''// --- boot splash ---

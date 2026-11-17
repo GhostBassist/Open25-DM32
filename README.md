@@ -25,7 +25,7 @@ Report firmware and P25 problems to **[Open25-DM32 issues](https://github.com/ty
 | Conventional P25 · White default theme | Trunked P25 · New interface |
 | ![Classic P25 channel settings with talkgroup and NAC](images/classic-settings.png) | ![Next P25 system settings with WACN and System ID](images/next-settings.png) |
 | P25 channel settings: talkgroup, NAC, and radio ID | Trunked system settings: WACN and System ID |
-| **0.1.0-rc1-r9 RFKV release candidate available** | **In development · source private.** |
+| **0.1.0-rc1-r10 release candidate available** | **In development · source private.** |
 
 | Feature | Classic | Next |
 | --- | --- | --- |
@@ -58,11 +58,23 @@ Encryption support is still being tested with other radios and systems.
 ## Release status
 
 **Classic and Next are alpha firmware, and testing is still underway.**
-Classic **0.1.0-rc1-r9** is available in the
+Classic **0.1.0-rc1-r10** is available in the
 [Flasher v3](https://kd8zmm.com/open25-dm32/v3/firmware.html), under
 **Open25-DM32 Classic → Standard · DM-32UV**. Final on-air qualification is
 incomplete; compatibility with every DM-32UV hardware revision is not established.
 Next remains unavailable, with its release date to be determined.
+
+Revision r10 adds an RX-only default and one explicit transmit confirmation to
+Classic and its matching CPS. New or copied channels whose actual TX frequency
+is outside **144–148 MHz** or **420–450 MHz** start RX-only. Changing the actual
+TX frequency outside those ranges restores RX-only. Actual TX uses RX when
+Talkaround is enabled or no TX frequency is set; otherwise it uses TX.
+
+Turning RX-only off outside those bands opens **Enable TX?**, showing the TX
+frequency. **Keep RX-only** is selected by default; choose **Enable TX** to
+allow transmitting. There is no prompt on each PTT press. Existing RFKV
+programming and imports keep their saved RX-only choices. Enabling TX does not
+bypass the existing P25 band restriction or normal transmit checks.
 
 Revision r9 switches saved P25 programming to RadioFoundry RFKV mode records
 and is released with the matching Classic CPS. Retired Classic A5/D/E records

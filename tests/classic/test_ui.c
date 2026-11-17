@@ -3,9 +3,74 @@
 #include "uiFlowTest.c"
 #undef main
 #include "ui/ui_svc.h"
+#include "ui/ui_nav.h"
 
 #define P25_EDIT "ok 5 ok down down ok "
 #define P25_TG P25_EDIT "down down down down down down down "
+
+#define RX_D4 "down down down down "
+#define RX_D5 RX_D4 "down "
+#define RX_D6 RX_D5 "down "
+#define RX_D8 RX_D4 RX_D4
+#define RX_CHANNEL "ok 5 ok "
+#define RX_TOGGLE RX_CHANNEL RX_D6
+#define RX_NEW "ok 5 up up up ok "
+#define RX_HAM_NEW "1 ok ok 5 up ok "
+
+/* Drive the real editor, then inspect the channel handed to its existing
+ * storage service. The simulator already has a TX-enabled non-ham channel3;
+ * no policy stand-in or new fixture state is needed. */
+static void rx_saved(const char *name,const char *script,uint16_t number,bool rx_only,uint32_t tx_hz)
+{
+    char error[300];channel_t saved;
+    sim_reset(sim_geom_find("240x320i10x5"),SIM_MAP_K);flows_run++;
+    if(!sim_run(script,error,sizeof error)) {
+        printf("FAIL %s: %s\n",name,error);fails++;return;
+    }
+    if(!sim_rec.codeplug_writes || !codeplug_channel(number,&saved) ||
+       saved.rx_only!=rx_only || saved.tx_hz!=tx_hz) {
+        printf("FAIL %s: saved RX-only/frequency intent\n",name);fails++;
+    }
+}
+
+static void rx_defaults_and_confirmation(void)
+{
+    rx_saved("New outside ham defaults RX-only",RX_NEW "long:ok",41,true,467375000);
+    rx_saved("Copy here outside ham defaults RX-only","ok 4 ctx ctx 3 long:ok",41,true,467375000);
+    rx_saved("New ham channel keeps TX permission",RX_HAM_NEW "long:ok",41,false,146340000);
+    rx_saved("Existing outside ham unrelated edit preserves TX",RX_CHANNEL RX_D5 "ok up ok long:ok",3,false,467375000);
+    rx_saved("TX frequency edit outside ham defaults RX-only","1 ok " RX_CHANNEL RX_D4 "ok 4 6 2 5 5 0 ok long:ok",1,true,462550000);
+    rx_saved("RX frequency carries offset outside ham RX-only","1 ok " RX_CHANNEL "down down down ok 1 5 0 9 4 0 ok long:ok",1,true,150340000);
+    rx_saved("Talkaround moves effective TX outside ham RX-only",RX_CHANNEL RX_D4 "ok 4 4 6 0 0 0 ok " RX_D8 "ok long:ok",3,true,446000000);
+    rx_saved("Confirmation defaults to keep RX-only",RX_NEW RX_D6 "ok expect:screen=confirm expect:focus=Keep_RX-only ok long:ok",41,true,467375000);
+    rx_saved("Back leaves outside channel RX-only",RX_NEW RX_D6 "ok back long:ok",41,true,467375000);
+    rx_saved("Explicit confirmation enables channel TX",RX_NEW RX_D6 "ok down ok expect:screen=channel long:ok",41,false,467375000);
+    rx_saved("Ham RX-only toggle has no confirmation",RX_HAM_NEW RX_D6 "ok ok expect:screen=channel long:ok",41,false,146340000);
+
+    char error[300],issues[SIM_LAYOUT_MAX][160];
+    sim_reset(sim_geom_find("240x320i10x5"),SIM_MAP_K);flows_run++;
+    sim_rec.shortened=0;
+    if(!sim_run("theme:light " RX_NEW RX_D6 "ok expect:screen=confirm expect:shows=Enable_TX? expect:shows=Outside_ham_bands expect:shows=467.375 expect:shows=PTT_may_transmit. expect:focus=Keep_RX-only",error,sizeof error)) {
+        printf("FAIL outside-ham confirmation copy: %s\n",error);fails++;
+    }
+    int layout=sim_layout_issues(issues,SIM_LAYOUT_MAX);
+    if(layout || sim_rec.shortened) {
+        printf("FAIL outside-ham confirmation readability: %d layout findings, %u shortened\n",layout,(unsigned)sim_rec.shortened);
+        for(int i=0;i<layout && i<SIM_LAYOUT_MAX;i++)puts(issues[i]);
+        fails++;
+    }
+    /* The same confirmation owner still treats arg0 as factory reset. */
+    sim_reset(sim_geom_find("240x320i10x5"),SIM_MAP_K);flows_run++;
+    ui_push(SCR_CONFIRM,0);
+    if(!sim_run("wait:1 expect:shows=Factory_Reset expect:focus=No,_keep_settings ok expect:screen=home",error,sizeof error)) {
+        printf("FAIL factory reset cancel unchanged: %s\n",error);fails++;
+    }
+    ui_push(SCR_CONFIRM,0);
+    if(!sim_run("wait:1 down ok expect:screen=home expect:toast=Factory_settings_restored",error,sizeof error)) {
+        printf("FAIL factory reset acceptance unchanged: %s\n",error);fails++;
+    }
+}
+
 int main(void)
 {
     const flow_t checks[]={
@@ -38,6 +103,7 @@ int main(void)
     if(!ui_notify(&result) || !sim_run("wait:1 expect:toast=Couldn't_write",error,sizeof error)) {
         puts("FAIL Classic Start new failure event"); fails++;
     }
+    rx_defaults_and_confirmation();
     printf("Classic P25 editor: %d flows, %d failures\n",flows_run,fails);
     return fails!=0;
 }
